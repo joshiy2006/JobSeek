@@ -1,0 +1,8 @@
+scrapy
+scrapy-playwright
+playwright
+lxml
+cssselect
+beautifulsoup4
+supabase
+python-dotenv
