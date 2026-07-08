@@ -13,25 +13,25 @@ class NaukriSpider(scrapy.Spider):
     QUERIES = [
        ## "software developer",
         "python developer",
-        ##"java developer",
+        "java developer",
         ##"frontend developer",
         ##"backend developer",
         ##"full stack developer",
-        ##"data analyst",
+        "data analyst",
         ##"data scientist",
-        ##"machine learning engineer",
+        "machine learning engineer",
         ##"devops engineer",
         ##"cloud engineer",
-        ##"ui ux designer",
+        "ui ux designer",
         ##"business analyst"
     ]
 
     LOCATIONS = [
         "bangalore",
-        ##"mumbai",
-        ##"delhi",
+        "mumbai",
+        "delhi",
         ##"hyderabad",
-        ##"chennai",
+        "chennai",
         ##"pune",
         ##"kolkata",
         ##"gurgaon"
