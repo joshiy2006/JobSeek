@@ -87,7 +87,7 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 font-heading">
-                  Skills Mirage
+                  JobSeek
                 </span>
                 <span className="text-[9px] font-black tracking-widest text-indigo-705 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md uppercase">
                   V2.5 Light

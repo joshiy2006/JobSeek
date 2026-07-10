@@ -86,11 +86,13 @@ class NaukriSpider(scrapy.Spider):
         return base if page == 1 else f"{base}-{page}"
 
     def start_requests(self):
+        self.logger.info("Entered start requests")
         for query in self.QUERIES:
             for location in self.LOCATIONS:
                 for page in range(1, self.total_pages + 1):
                     
                     url = self._build_url(query, location, page)
+                    self.logger.info(f"scheduling {url}")
                     yield scrapy.Request(
                         url,
                         meta={
@@ -217,8 +219,4 @@ class NaukriSpider(scrapy.Spider):
         match = re.search(r"-(\d{6,12})(?:\?|$)", url)
         return match.group(1) if match else url.split("/")[-1][:20]
 
-    async def errback(self, failure):
-        page = failure.request.meta.get("playwright_page")
-        if page:
-            await page.close()
-        self.logger.error(f"Request failed: {failure.request.url} — {failure.value}")
+    
