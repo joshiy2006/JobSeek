@@ -148,5 +148,5 @@ DEFAULT_REQUEST_HEADERS = {
     ),
 }
 
-LOG_LEVEL = "INFO"
+LOG_LEVEL = "DEBUG"
 FEEDS = {}  # disable default feed export; Supabase pipeline handles persistence
