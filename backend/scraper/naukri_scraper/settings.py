@@ -7,6 +7,7 @@
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
+import os
 BOT_NAME = "naukri_scraper"
 
 SPIDER_MODULES = ["naukri_scraper.spiders"]
