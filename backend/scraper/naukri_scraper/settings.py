@@ -109,10 +109,10 @@ DOWNLOADER_MIDDLEWARES = {
     ##"scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler": 543,
 }
 
-#DOWNLOAD_HANDLERS = {
-#    "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
-#    "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
-#}
+DOWNLOAD_HANDLERS = {
+    "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+    "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+}
 
 
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
