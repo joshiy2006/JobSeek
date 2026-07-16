@@ -36,4 +36,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: scrapy crawl naukri
+        run: scrapy crawl naukri_v2

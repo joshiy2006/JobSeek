@@ -7,7 +7,7 @@ import re
 
 
 class NaukriSpider(scrapy.Spider):
-    name = "naukri"
+    name = "naukri_v2"
     allowed_domains = ["naukri.com"]
 
     QUERIES = [
