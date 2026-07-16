@@ -86,6 +86,7 @@ class NaukriSpider(scrapy.Spider):
         return base if page == 1 else f"{base}-{page}"
 
     def start_requests(self):
+        self.logger.critical(">>>>>>>> START_REQUESTS IS ALIVE <<<<<<<<")
         for query in self.QUERIES:
             for location in self.LOCATIONS:
                 for page in range(1, self.total_pages + 1):
