@@ -37,15 +37,21 @@ jobs:
           curl -s https://api.ipify.org
           curl -s https://ipinfo.io/$(curl -s https://api.ipify.org)/json
 
-      - name: Test raw response from Naukri
+      - name: Test with browser-like headers, verbose
         run: |
-          curl -s -o response.html -w "STATUS:%{http_code} SIZE:%{size_download}\n" https://www.naukri.com
-          head -c 500 response.html
-      - name: Upload response for inspection
+          curl -v --http1.1 \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" \
+            -H "Accept-Language: en-US,en;q=0.9" \
+            -o response.html -w "STATUS:%{http_code} SIZE:%{size_download}\n" \
+            https://www.naukri.com 2>&1 | tee curl_log.txt
+      - name: Upload log and response
         uses: actions/upload-artifact@v4
         with:
-          name: naukri-response
-          path: response.html
+          name: naukri-debug
+          path: |
+            response.html
+            curl_log.txt
 
       - name: Run scraper
         env:
