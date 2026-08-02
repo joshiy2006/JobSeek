@@ -44,8 +44,8 @@ jobs:
       - name: Upload response for inspection
         uses: actions/upload-artifact@v4
         with:
-        name: naukri-response
-        path: response.html
+          name: naukri-response
+          path: response.html
 
       - name: Run scraper
         env:
