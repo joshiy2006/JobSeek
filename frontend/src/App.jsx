@@ -28,6 +28,26 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
 
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('theme') || 'system';
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('dark');
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else if (theme === 'light') {
+      localStorage.setItem('theme', 'light');
+    } else {
+      localStorage.setItem('theme', 'system');
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        root.classList.add('dark');
+      }
+    }
+  }, [theme]);
+
   // Endpoint hook: POST /api/v1/analyze-profile
   const handleProfileSubmit = async () => {
     setIsLoading(true);
@@ -73,10 +93,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen md:h-screen bg-slate-50 text-slate-900 flex flex-col font-sans md:overflow-hidden">
+    <div className="min-h-screen md:h-screen bg-slate-50 text-slate-900 flex flex-col font-sans md:overflow-hidden dark:bg-slate-950 dark:text-slate-100">
       
       {/* Persistent App Header (Light, Clean) */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-6 py-4 shadow-sm shrink-0">
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-6 py-4 shadow-sm shrink-0 dark:bg-slate-900 dark:border-slate-800">
         <div className="mx-auto flex items-center justify-between gap-4">
           
           {/* Logo and Name */}
@@ -127,7 +147,7 @@ export default function App() {
       <div className="flex-1 flex flex-col md:flex-row md:overflow-hidden min-h-0">
         
         {/* Left Global Sidebar (Visible across all authenticated views) */}
-        <aside className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 p-4 shrink-0 flex flex-col gap-1.5 md:overflow-y-auto md:h-full">
+        <aside className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 p-4 shrink-0 flex flex-col gap-1.5 md:overflow-y-auto md:h-full dark:bg-slate-900 dark:border-slate-800">
           
           <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase px-3 mb-2 block">
             Navigation
@@ -234,7 +254,7 @@ export default function App() {
         </aside>
 
         {/* Main Content Area (Light backgrounds, aggressive size increases) */}
-        <main className="flex-1 p-6 md:p-8 bg-slate-50 overflow-y-auto min-h-0 flex flex-col justify-between">
+        <main className="flex-1 p-6 md:p-8 bg-slate-50 overflow-y-auto min-h-0 flex flex-col justify-between dark:bg-slate-950">
           
           {/* SYSTEM VIEW: JOB SEARCH */}
           {sidebarView === 'job-search' && (
@@ -289,44 +309,153 @@ export default function App() {
             </div>
           )}
 
-          {/* SYSTEM VIEW C: ACCOUNT SETTINGS PLACEHOLDER */}
+          {/* SYSTEM VIEW C: ACCOUNT SETTINGS */}
           {sidebarView === 'settings' && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-2xl mx-auto shadow-sm flex flex-col gap-6">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-2xl mx-auto shadow-sm flex flex-col gap-8 dark:bg-slate-900 dark:border-slate-800">
+              
+              {/* User Preferences */}
               <div>
-                <h3 className="text-xl font-bold text-slate-900 font-heading">Account & System Configuration</h3>
-                <p className="text-xs sm:text-sm text-slate-500">Manage credential parameters, database streams, and API tokens</p>
+                <h3 className="text-xl font-bold text-slate-900 font-heading dark:text-slate-100">Application Preferences</h3>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">Customize your theme and display settings</p>
+                
+                <div className="mt-5 space-y-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center text-sm gap-4 dark:bg-slate-800 dark:border-slate-700">
+                    <div>
+                      <span className="font-bold block text-slate-800 dark:text-slate-200">Interface Theme</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium text-xs">Select your preferred color scheme</span>
+                    </div>
+                    <div className="flex bg-slate-200 p-1 rounded-lg dark:bg-slate-900">
+                      <button 
+                        onClick={() => setTheme('light')}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${theme === 'light' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                      >
+                        Light
+                      </button>
+                      <button 
+                        onClick={() => setTheme('dark')}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${theme === 'dark' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                      >
+                        Dark
+                      </button>
+                      <button 
+                        onClick={() => setTheme('system')}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${theme === 'system' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                      >
+                        System
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center text-xs sm:text-sm">
-                  <div>
-                    <span className="font-bold block text-slate-800">FastAPI Connection URL</span>
-                    <span className="text-slate-500 font-medium">Active proxy route</span>
-                  </div>
-                  <span className="font-mono text-indigo-650 bg-indigo-50 border border-indigo-150 px-3 py-1.5 rounded-lg">http://127.0.0.1:8000/api/v1</span>
-                </div>
+              <hr className="border-slate-100 dark:border-slate-800" />
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center text-xs sm:text-sm">
-                  <div>
-                    <span className="font-bold block text-slate-800">Local Cache Database</span>
-                    <span className="text-slate-500 font-medium">Index of Tier-2/3 crawler sets</span>
+              {/* Notification Preferences */}
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 font-heading dark:text-slate-100">Notification Preferences</h3>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">Manage how we communicate with you</p>
+                
+                <div className="mt-5 space-y-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center text-xs sm:text-sm dark:bg-slate-800 dark:border-slate-700">
+                    <div>
+                      <span className="font-bold block text-slate-800 dark:text-slate-200">Job Alert Emails</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Daily/weekly email digests of matching roles</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" defaultChecked />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                    </label>
                   </div>
-                  <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-150 px-3 py-1.5 rounded-lg">Active (2,450 vectors)</span>
-                </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center text-xs sm:text-sm">
-                  <div>
-                    <span className="font-bold block text-slate-800">NPTEL / SWAYAM Portal API</span>
-                    <span className="text-slate-500 font-medium">Automatic syllabus checking</span>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center text-xs sm:text-sm dark:bg-slate-800 dark:border-slate-700">
+                    <div>
+                      <span className="font-bold block text-slate-800 dark:text-slate-200">Application Status Updates</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Alerts when employers update your pipeline</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" defaultChecked />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                    </label>
                   </div>
-                  <span className="text-indigo-650 font-bold hover:underline cursor-pointer">Re-verify Sync</span>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center text-xs sm:text-sm dark:bg-slate-800 dark:border-slate-700">
+                    <div>
+                      <span className="font-bold block text-slate-800 dark:text-slate-200">Hiring Trends & Newsletter</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Market insights and platform updates</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <div className="border-t border-slate-100 pt-6">
+              <hr className="border-slate-100 dark:border-slate-800" />
+
+              {/* Privacy & Profile Visibility */}
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 font-heading dark:text-slate-100">Privacy & Profile Visibility</h3>
+                
+                <div className="mt-5 space-y-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center text-xs sm:text-sm gap-4 dark:bg-slate-800 dark:border-slate-700">
+                    <div>
+                      <span className="font-bold block text-slate-800 dark:text-slate-200">Public Profile Status</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Control who can discover your profile</span>
+                    </div>
+                    <select className="bg-white border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 dark:bg-slate-700 dark:border-slate-600 dark:placeholder-slate-400 dark:text-white dark:focus:ring-indigo-500 dark:focus:border-indigo-500 font-semibold cursor-pointer outline-none">
+                      <option>Public to Recruiters</option>
+                      <option>Anonymous Search</option>
+                      <option>Private</option>
+                    </select>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center text-xs sm:text-sm dark:bg-slate-800 dark:border-slate-700">
+                    <div>
+                      <span className="font-bold block text-slate-800 dark:text-slate-200">Data Personalization</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Allow AI-driven recommendations</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" defaultChecked />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <hr className="border-slate-100 dark:border-slate-800" />
+
+              {/* Account Security */}
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 font-heading dark:text-slate-100">Account Security</h3>
+                
+                <div className="mt-5 space-y-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center text-xs sm:text-sm dark:bg-slate-800 dark:border-slate-700">
+                    <div>
+                      <span className="font-bold block text-slate-800 dark:text-slate-200">Password Management</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Update your login credentials</span>
+                    </div>
+                    <button className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-600">
+                      Change Password
+                    </button>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-between items-center text-xs sm:text-sm dark:bg-slate-800 dark:border-slate-700">
+                    <div>
+                      <span className="font-bold block text-slate-800 dark:text-slate-200">Two-Factor Auth (2FA)</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Add an extra layer of security</span>
+                    </div>
+                    <button className="px-4 py-2 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs hover:bg-indigo-100 transition-colors dark:bg-indigo-900/30 dark:border-indigo-800/50 dark:text-indigo-400 dark:hover:bg-indigo-900/50">
+                      Manage 2FA
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
                 <button
                   onClick={() => setIsAuthenticated(false)}
-                  className="px-5 py-3 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-600 font-bold text-xs sm:text-sm uppercase tracking-wider transition-colors cursor-pointer"
+                  className="px-5 py-3 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-600 font-bold text-xs sm:text-sm uppercase tracking-wider transition-colors cursor-pointer dark:bg-orange-900/30 dark:border-orange-800/50 dark:text-orange-500 dark:hover:bg-orange-900/50"
                 >
                   Logout Session
                 </button>
@@ -335,7 +464,7 @@ export default function App() {
           )}
 
           {/* Persistent Footer */}
-          <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500 mt-8 shrink-0">
+          <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500 mt-8 shrink-0 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400">
             <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
               <p>© 2026 Skills Mirage. Deployed under India's Open Workforce Intelligence protocol.</p>
               <div className="flex gap-4">

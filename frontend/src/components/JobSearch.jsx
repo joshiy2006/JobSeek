@@ -276,21 +276,8 @@ export default function JobSearch() {
                   ← Previous
                 </button>
 
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                    <button
-                      key={pageNum}
-                      type="button"
-                      onClick={() => handlePageChange(pageNum)}
-                      className={`w-9 h-9 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center transition-all cursor-pointer ${
-                        currentPage === pageNum
-                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                          : 'bg-white text-slate-650 hover:bg-slate-50 border border-slate-200 shadow-sm hover:border-slate-355'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-1 px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs sm:text-sm">
+                  Page {currentPage} of {totalPages}
                 </div>
 
                 <button

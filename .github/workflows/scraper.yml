@@ -32,6 +32,11 @@ jobs:
       - name: Install Playwright browsers
         run: playwright install --with-deps chromium
 
+      - name: Check runner IP
+        run: | 
+          curl -s https://api.ipify.org
+          curl -s https://ipinfo.io/$(curl -s https://api.ipify.org)/json
+
       - name: Run scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
