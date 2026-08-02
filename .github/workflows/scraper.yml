@@ -37,6 +37,16 @@ jobs:
           curl -s https://api.ipify.org
           curl -s https://ipinfo.io/$(curl -s https://api.ipify.org)/json
 
+      - name: Test raw response from Naukri
+        run: |
+          curl -s -o response.html -w "STATUS:%{http_code} SIZE:%{size_download}\n" https://www.naukri.com
+          head -c 500 response.html
+      - name: Upload response for inspection
+        uses: actions/upload-artifact@v4
+        with:
+        name: naukri-response
+        path: response.html
+
       - name: Run scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
