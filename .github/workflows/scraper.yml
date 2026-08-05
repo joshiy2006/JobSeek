@@ -58,6 +58,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
-          python -m scrapy crawl naukri \
-            -s TWISTED_REACTOR="twisted.internet.asyncioreactor.AsyncioSelectorReactor" \
-            -s DOWNLOAD_HANDLERS='{"http":"scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler","https":"scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler"}'
+          # 1. Force the settings directly into settings.py
+          echo 'TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"' >> naukri_scraper/settings.py
+          echo 'DOWNLOAD_HANDLERS = {"http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler", "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler"}' >> naukri_scraper/settings.py
+          
+          # 2. Run the spider
+          scrapy crawl naukri
