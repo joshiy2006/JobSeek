@@ -57,4 +57,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: scrapy crawl naukri
+        run: |
+          scrapy crawl naukri \
+            -s TWISTED_REACTOR="twisted.internet.asyncioreactor.AsyncioSelectorReactor" \
+            -s DOWNLOAD_HANDLERS='{"http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler", "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler"}'
