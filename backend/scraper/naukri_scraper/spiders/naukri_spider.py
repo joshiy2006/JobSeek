@@ -63,7 +63,7 @@ class NaukriSpider(scrapy.Spider):
         base = f"https://www.naukri.com/{slug}-jobs-in-{loc_slug}"
         return base if page == 1 else f"{base}-{page}"
 
-    def start_requests(self):
+    async def start_requests(self):
         self.logger.info(">>>>>>>> START_REQUESTS IS SUCCESSFULLY BOUND TO THE CLASS! <<<<<<<<")
         
         for query in self.QUERIES:
