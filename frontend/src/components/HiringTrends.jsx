@@ -22,8 +22,8 @@ export default function HiringTrends() {
     return () => clearTimeout(timer);
   }, [timeframe, selectedCity, selectedSector]);
 
-  const filteredCities = CITIES.filter(c => 
-    c.name.toLowerCase().includes(searchCity.toLowerCase()) || 
+  const filteredCities = CITIES.filter(c =>
+    c.name.toLowerCase().includes(searchCity.toLowerCase()) ||
     c.state.toLowerCase().includes(searchCity.toLowerCase())
   );
 
@@ -36,26 +36,24 @@ export default function HiringTrends() {
   const isPositive = rawChange >= 0;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-      
-      {/* Left Column: Filter Sidebar (Light, Legible) */}
-      <aside className="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col gap-6">
-        
-        {/* Timeframe Selector */}
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full">
+
+      {/* Filters */}
+      <aside className="lg:col-span-4 card p-5 flex flex-col gap-5 dark:bg-slate-900">
         <div>
-          <label className="block text-sm font-bold uppercase tracking-wider text-slate-650 mb-3 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-indigo-650" />
-            Time Range Selector
+          <label className="flex items-center gap-2 section-label mb-3">
+            <Calendar className="w-4 h-4 text-indigo-600" />
+            Time Range
           </label>
-          <div className="grid grid-cols-4 gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+          <div className="grid grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl dark:bg-slate-800">
             {['7d', '30d', '90d', '1yr'].map((t) => (
               <button
                 key={t}
                 onClick={() => setTimeframe(t)}
-                className={`py-2 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
-                  timeframe === t 
-                    ? 'bg-white text-indigo-650 shadow-sm border border-slate-200' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  timeframe === t
+                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
                 }`}
               >
                 {t}
@@ -64,46 +62,40 @@ export default function HiringTrends() {
           </div>
         </div>
 
-        {/* Indian City Dropdown */}
         <div className="relative">
-          <label className="block text-sm font-bold uppercase tracking-wider text-slate-650 mb-3 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-indigo-650" />
+          <label className="flex items-center gap-2 section-label mb-3">
+            <MapPin className="w-4 h-4 text-indigo-600" />
             Indian City (Tier-2/3)
           </label>
-          
           <div className="relative">
             <button
               onClick={() => setCityDropdownOpen(!cityDropdownOpen)}
-              className="w-full flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-sm sm:text-base text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
+              className="input-base w-full flex items-center justify-between px-4 py-3 text-sm cursor-pointer"
             >
               <span>{activeCityName}</span>
-              <ChevronDown className="w-5 h-5 text-slate-500" />
+              <ChevronDown className="w-4 h-4 text-slate-400" />
             </button>
 
             {cityDropdownOpen && (
-              <div className="absolute z-20 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-                <div className="p-3 sticky top-0 bg-white border-b border-slate-100">
+              <div className="absolute z-20 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto dark:bg-slate-800 dark:border-slate-700">
+                <div className="p-3 sticky top-0 bg-white border-b border-slate-100 dark:bg-slate-800 dark:border-slate-700">
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Search 20+ Tier-2/3 cities..."
+                      placeholder="Search cities..."
                       value={searchCity}
                       onChange={(e) => setSearchCity(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+                      className="input-base w-full pl-9 pr-3 py-2 text-xs"
                       onClick={(e) => e.stopPropagation()}
                     />
-                    <Search className="absolute left-3 top-3 w-4 h-4 text-slate-450" />
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                   </div>
                 </div>
                 <div className="py-1">
                   <button
-                    onClick={() => {
-                      setSelectedCity('all');
-                      setSearchCity('');
-                      setCityDropdownOpen(false);
-                    }}
-                    className={`w-full text-left px-5 py-2.5 text-xs sm:text-sm transition-colors hover:bg-slate-50 hover:text-indigo-600 ${
-                      selectedCity === 'all' ? 'text-indigo-600 font-extrabold bg-indigo-50/40' : 'text-slate-700'
+                    onClick={() => { setSelectedCity('all'); setSearchCity(''); setCityDropdownOpen(false); }}
+                    className={`w-full text-left px-5 py-2.5 text-sm transition-colors hover:bg-slate-50 hover:text-indigo-600 dark:hover:bg-slate-700 ${
+                      selectedCity === 'all' ? 'text-indigo-600 font-bold bg-indigo-50/50 dark:bg-indigo-900/20' : 'text-slate-700 dark:text-slate-300'
                     }`}
                   >
                     All India (Tier-2/Tier-3)
@@ -111,43 +103,35 @@ export default function HiringTrends() {
                   {filteredCities.map((c) => (
                     <button
                       key={c.id}
-                      onClick={() => {
-                        setSelectedCity(c.id);
-                        setSearchCity('');
-                        setCityDropdownOpen(false);
-                      }}
-                      className={`w-full text-left px-5 py-2.5 text-xs sm:text-sm transition-colors hover:bg-slate-50 hover:text-indigo-600 flex justify-between items-center ${
-                        selectedCity === c.id ? 'text-indigo-600 font-extrabold bg-indigo-50/40' : 'text-slate-700'
+                      onClick={() => { setSelectedCity(c.id); setSearchCity(''); setCityDropdownOpen(false); }}
+                      className={`w-full text-left px-5 py-2.5 text-sm transition-colors hover:bg-slate-50 hover:text-indigo-600 flex justify-between items-center dark:hover:bg-slate-700 ${
+                        selectedCity === c.id ? 'text-indigo-600 font-bold bg-indigo-50/50 dark:bg-indigo-900/20' : 'text-slate-700 dark:text-slate-300'
                       }`}
                     >
                       <span>{c.name}, {c.state}</span>
-                      <span className="text-[10px] text-slate-550 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">{c.tier}</span>
+                      <span className="badge badge-slate">{c.tier}</span>
                     </button>
                   ))}
-                  {filteredCities.length === 0 && (
-                    <div className="px-5 py-2.5 text-xs text-slate-450 italic">No matching cities found</div>
-                  )}
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Sector Selection */}
         <div>
-          <label className="block text-sm font-bold uppercase tracking-wider text-slate-650 mb-3 flex items-center gap-2">
-            <Briefcase className="w-4 h-4 text-indigo-650" />
+          <label className="flex items-center gap-2 section-label mb-3">
+            <Briefcase className="w-4 h-4 text-indigo-600" />
             Industry Sector
           </label>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {SECTORS.map((s) => (
               <button
                 key={s.id}
                 onClick={() => setSelectedSector(s.id)}
-                className={`w-full text-left px-4 py-3 text-xs sm:text-sm rounded-xl transition-all border flex items-center justify-between cursor-pointer ${
+                className={`w-full text-left px-4 py-2.5 text-sm rounded-xl transition-all border flex items-center justify-between cursor-pointer ${
                   selectedSector === s.id
-                    ? 'bg-indigo-50/50 text-indigo-700 border-indigo-400 font-bold shadow-glow-indigo'
-                    : 'text-slate-600 bg-slate-50/40 border-slate-200 hover:text-slate-800 hover:bg-slate-100/50'
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-400'
+                    : 'text-slate-600 bg-slate-50 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
                 }`}
               >
                 <span>{s.name}</span>
@@ -157,166 +141,115 @@ export default function HiringTrends() {
           </div>
         </div>
 
-        {/* Info card */}
-        <div className="mt-2 pt-4 border-t border-slate-200 text-xs text-slate-500 leading-normal">
+        <div className="pt-4 border-t border-slate-100 text-xs text-slate-400 dark:border-slate-800">
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse" />
-            <span className="font-bold text-slate-600">Active Live API Feed</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-bold text-slate-600 dark:text-slate-400">Active Live API Feed</span>
           </div>
-          <p>Analyzing job listing indexes and public enrollment volumes every 6 hours.</p>
+          <p>Analyzing job listing indexes every 6 hours.</p>
         </div>
       </aside>
 
-      {/* Right Area: Aggregate Volume Trends (Overhauled for Legibility) */}
-      <section className="lg:col-span-8 flex flex-col gap-6">
-        
-        {/* KPI Cards Grid (Text sizes 25% larger) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <p className="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider">Total Active Listings</p>
+      {/* Charts */}
+      <section className="lg:col-span-8 flex flex-col gap-5">
+
+        {/* KPI cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="card p-5 dark:bg-slate-900">
+            <p className="section-label">Total Active Listings</p>
             {isApiLoading ? (
-              <div className="h-10 w-28 bg-slate-200 rounded animate-pulse mt-2" />
+              <div className="skeleton h-8 w-24 mt-2" />
             ) : (
-              <h4 className="text-3xl sm:text-4xl font-black text-slate-900 mt-2 font-heading">
+              <h4 className="text-2xl font-bold text-slate-900 mt-2 font-heading dark:text-slate-100">
                 {currentVolume.toLocaleString('en-IN')}
-                <span className="text-sm text-slate-500 font-bold ml-1.5 uppercase">Jobs</span>
+                <span className="text-xs text-slate-400 font-bold ml-1.5 uppercase">Jobs</span>
               </h4>
             )}
-            <p className="text-xs text-slate-400 mt-3">Verified active postings</p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <p className="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider">Month-over-Month Change</p>
+          <div className="card p-5 dark:bg-slate-900">
+            <p className="section-label">MoM Change</p>
             {isApiLoading ? (
-              <div className="h-10 w-28 bg-slate-200 rounded animate-pulse mt-2" />
+              <div className="skeleton h-8 w-24 mt-2" />
             ) : (
               <div className="flex items-baseline gap-2 mt-2">
-                <h4 className={`text-3xl sm:text-4xl font-black font-heading ${isPositive ? 'text-indigo-650' : 'text-orange-600'}`}>
+                <h4 className={`text-2xl font-bold font-heading ${isPositive ? 'text-indigo-600' : 'text-orange-600'}`}>
                   {isPositive ? '+' : ''}{momChange}%
                 </h4>
               </div>
             )}
-            <p className="text-xs text-slate-400 mt-3 flex items-center gap-1.5 font-semibold">
-              {isPositive ? (
-                <TrendingUp className="w-4 h-4 text-indigo-600" />
-              ) : (
-                <TrendingDown className="w-4 h-4 text-orange-500" />
-              )}
+            <p className="text-xs mt-2 flex items-center gap-1.5 font-semibold">
+              {isPositive ? <TrendingUp className="w-3.5 h-3.5 text-indigo-600" /> : <TrendingDown className="w-3.5 h-3.5 text-orange-500" />}
               <span className={isPositive ? 'text-indigo-600' : 'text-orange-500'}>
                 {isPositive ? 'Demand Growth' : 'Market Decline'}
               </span>
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <p className="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider">Hiring Volume Status</p>
+          <div className="card p-5 dark:bg-slate-900">
+            <p className="section-label">Hiring Status</p>
             {isApiLoading ? (
-              <div className="h-10 w-28 bg-slate-200 rounded animate-pulse mt-2" />
+              <div className="skeleton h-8 w-24 mt-2" />
             ) : (
-              <h4 className="text-3xl sm:text-4xl font-black text-slate-900 mt-2 font-heading flex items-center gap-3">
+              <h4 className="text-2xl font-bold text-slate-900 mt-2 font-heading flex items-center gap-2 dark:text-slate-100">
                 {isPositive ? 'Resilient' : 'Contraction'}
-                <span className={`w-3.5 h-3.5 rounded-full ${isPositive ? 'bg-emerald-600' : 'bg-orange-500'} shadow-sm`} />
+                <span className={`w-3 h-3 rounded-full ${isPositive ? 'bg-emerald-500' : 'bg-orange-500'}`} />
               </h4>
             )}
-            <p className="text-xs text-slate-400 mt-3">Local market condition</p>
           </div>
-
         </div>
 
-        {/* Area Chart Overhaul */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col h-[450px]">
-          
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-3">
+        {/* Chart */}
+        <div className="card p-5 flex flex-col h-[420px] dark:bg-slate-900">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
             <div>
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 font-heading">
+              <h3 className="text-base font-bold text-slate-900 font-heading dark:text-slate-100">
                 Market Volume & Application Trends
-                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
-                  Live API stream
-                </span>
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500">Comparing active JDs vs applications over selected timeframe</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active JDs vs applications over selected timeframe</p>
             </div>
-            
-            {/* Chart Legend (Significantly Bigger) */}
-            <div className="text-xs sm:text-sm font-bold text-slate-655 border border-slate-200 px-3.5 py-1.5 rounded-xl bg-slate-50 flex items-center gap-4">
-              <span className="flex items-center gap-2">
-                <span className="w-3.5 h-3.5 bg-indigo-600 rounded-md" /> 
-                Listings
+            <div className="text-xs font-semibold text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg bg-slate-50 flex items-center gap-4 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 bg-indigo-600 rounded" /> Listings
               </span>
-              <span className="flex items-center gap-2">
-                <span className="w-3.5 h-3.5 bg-emerald-600 rounded-md" /> 
-                Applications
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 bg-emerald-600 rounded" /> Applications
               </span>
             </div>
           </div>
 
-          {/* Recharts Component (High Legibility light theme styling) */}
           <div className="flex-1 min-h-[280px]">
             {isApiLoading ? (
-              <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-slate-500">
+              <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-slate-400">
                 <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
-                <span className="text-sm font-semibold">Streaming signals from /api/v1/market-signals ...</span>
+                <span className="text-sm font-semibold">Streaming market signals...</span>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorListings" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15}/>
-                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="colorApplications" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.6} />
-                  <XAxis 
-                    dataKey="name" 
-                    stroke="#475569" 
-                    fontSize={12} 
-                    fontWeight={600}
-                    tickLine={false}
-                    axisLine={false}
-                    dy={10}
-                  />
-                  <YAxis 
-                    stroke="#475569" 
-                    fontSize={12} 
-                    fontWeight={600}
-                    tickLine={false}
-                    axisLine={false}
-                    dx={-5}
-                    tickFormatter={(val) => val >= 1000 ? `${(val/1000).toFixed(1)}k` : val}
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                  <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dx={-5}
+                    tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}k` : val}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderColor: '#cbd5e1',
-                      borderRadius: '12px',
-                      color: '#0f172a',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                      backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '12px',
+                      color: '#0f172a', fontSize: '12px', fontWeight: 600, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                     }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="Listings" 
-                    stroke="#4f46e5" 
-                    strokeWidth={3}
-                    fillOpacity={1} 
-                    fill="url(#colorListings)" 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="Applications" 
-                    stroke="#10b981" 
-                    strokeWidth={3}
-                    fillOpacity={1} 
-                    fill="url(#colorApplications)" 
-                  />
+                  <Area type="monotone" dataKey="Listings" stroke="#4f46e5" strokeWidth={2.5} fillOpacity={1} fill="url(#colorListings)" />
+                  <Area type="monotone" dataKey="Applications" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorApplications)" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
