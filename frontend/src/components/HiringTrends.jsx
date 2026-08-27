@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { CITIES, SECTORS, generateHiringTrend } from '../utils/mockData';
+import React, { useState, useEffect, useCallback } from 'react';
+import { CITIES, SECTORS } from '../utils/mockData'; // still used for the filter menus themselves
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Search, Calendar, Briefcase, MapPin, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
+
+// Point this at your FastAPI base URL (env var recommended)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export default function HiringTrends() {
   const [timeframe, setTimeframe] = useState('30d');
@@ -11,23 +14,63 @@ export default function HiringTrends() {
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [chartData, setChartData] = useState([]);
   const [isApiLoading, setIsApiLoading] = useState(false);
+  const [apiError, setApiError] = useState(null);
 
-  useEffect(() => {
-    setIsApiLoading(true);
-    const timer = setTimeout(() => {
-      const data = generateHiringTrend(timeframe, selectedCity === 'all' ? null : selectedCity, selectedSector);
-      setChartData(data);
-      setIsApiLoading(false);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [timeframe, selectedCity, selectedSector]);
+  const activeCity = CITIES.find((c) => c.id === selectedCity);
+  const activeSector = SECTORS.find((s) => s.id === selectedSector);
 
-  const filteredCities = CITIES.filter(c =>
-    c.name.toLowerCase().includes(searchCity.toLowerCase()) ||
-    c.state.toLowerCase().includes(searchCity.toLowerCase())
+  const fetchTrends = useCallback(
+    async (signal) => {
+      setIsApiLoading(true);
+      setApiError(null);
+
+      const params = new URLSearchParams({ timeframe });
+
+      // city filter: send the real city name, backend matches it
+      // against joblocation_address
+      if (activeCity && selectedCity !== 'all') {
+        params.set('city', activeCity.name);
+      }
+
+      // sector filter: each SECTORS entry needs an `industries` array
+      // added in mockData.js — the exact `industry` column values that
+      // belong to that sector bucket, e.g.:
+      //   { id: 'bfsi', name: 'BFSI (Banking & Finance)',
+      //     industries: ['Banking / Financial Services / Broking', 'Accounting / Finance', 'Insurance'] }
+      if (activeSector && selectedSector !== 'all' && activeSector.industries?.length) {
+        activeSector.industries.forEach((ind) => params.append('industries', ind));
+      }
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/hiring-trends?${params.toString()}`, { signal });
+        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+        const json = await res.json();
+        setChartData(json.data || []);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setApiError('Could not load hiring trends right now.');
+          setChartData([]);
+        }
+      } finally {
+        setIsApiLoading(false);
+      }
+    },
+    [timeframe, selectedCity, selectedSector, activeCity, activeSector]
   );
 
-  const activeCityName = selectedCity === 'all' ? 'All India (Tier-2/3)' : CITIES.find(c => c.id === selectedCity)?.name;
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchTrends(controller.signal);
+    return () => controller.abort();
+  }, [fetchTrends]);
+
+  const filteredCities = CITIES.filter(
+    (c) =>
+      c.name.toLowerCase().includes(searchCity.toLowerCase()) ||
+      c.state.toLowerCase().includes(searchCity.toLowerCase())
+  );
+
+  const activeCityName = selectedCity === 'all' ? 'All India (Tier-2/3)' : activeCity?.name;
 
   const currentVolume = chartData[chartData.length - 1]?.Listings || 0;
   const initialVolume = chartData[0]?.Listings || 0;
@@ -153,6 +196,12 @@ export default function HiringTrends() {
       {/* Charts */}
       <section className="lg:col-span-8 flex flex-col gap-5">
 
+        {apiError && (
+          <div className="card p-4 border border-orange-200 bg-orange-50 text-orange-700 text-sm dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-400">
+            {apiError}
+          </div>
+        )}
+
         {/* KPI cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="card p-5 dark:bg-slate-900">
@@ -204,16 +253,16 @@ export default function HiringTrends() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
             <div>
               <h3 className="text-base font-bold text-slate-900 font-heading dark:text-slate-100">
-                Market Volume & Application Trends
+                Market Volume & Openings Trends
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active JDs vs applications over selected timeframe</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active JDs vs total open positions over selected timeframe</p>
             </div>
             <div className="text-xs font-semibold text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg bg-slate-50 flex items-center gap-4 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
               <span className="flex items-center gap-1.5">
                 <span className="w-3 h-3 bg-indigo-600 rounded" /> Listings
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 bg-emerald-600 rounded" /> Applications
+                <span className="w-3 h-3 bg-emerald-600 rounded" /> Openings
               </span>
             </div>
           </div>
@@ -232,7 +281,7 @@ export default function HiringTrends() {
                       <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15} />
                       <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                     </linearGradient>
-                    <linearGradient id="colorApplications" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="colorOpenings" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
@@ -249,7 +298,7 @@ export default function HiringTrends() {
                     }}
                   />
                   <Area type="monotone" dataKey="Listings" stroke="#4f46e5" strokeWidth={2.5} fillOpacity={1} fill="url(#colorListings)" />
-                  <Area type="monotone" dataKey="Applications" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorApplications)" />
+                  <Area type="monotone" dataKey="Openings" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorOpenings)" />
                 </AreaChart>
               </ResponsiveContainer>
             )}

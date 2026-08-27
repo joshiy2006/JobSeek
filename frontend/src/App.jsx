@@ -91,7 +91,6 @@ export default function App() {
     { id: 'job-search', label: 'Job Search', icon: Search },
     { id: 'hiring-trends', label: 'Hiring Trends', icon: Globe },
     { id: 'skills-intelligence', label: 'Skills Intelligence', icon: Cpu },
-    { id: 'vulnerability-index', label: 'AI Vulnerability', icon: Lock },
     { id: 'skill-gaps', label: 'Skill Gaps Map', icon: Award },
     { id: 'personal-career', label: 'Personal Career', icon: UserCheck },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -184,23 +183,7 @@ export default function App() {
             </button>
           ))}
 
-          <div className="mt-auto hidden md:block pt-4">
-            <div className="card p-4 flex flex-col gap-3">
-              <span className="section-label">System Status</span>
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="text-slate-500 flex items-center gap-1.5 dark:text-slate-400">
-                  <Activity className="w-3.5 h-3.5 text-indigo-600" /> Crawl rate
-                </span>
-                <span className="text-slate-700 dark:text-slate-300">45 Boards</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="text-slate-500 flex items-center gap-1.5 dark:text-slate-400">
-                  <Database className="w-3.5 h-3.5 text-emerald-600" /> DB Version
-                </span>
-                <span className="text-slate-700 dark:text-slate-300">API 2.4.8</span>
-              </div>
-            </div>
-          </div>
+          
         </aside>
 
         {/* ── Mobile backdrop ── */}
@@ -217,12 +200,11 @@ export default function App() {
           {sidebarView === 'job-search' && <JobSearch />}
           {sidebarView === 'hiring-trends' && <HiringTrends />}
           {sidebarView === 'skills-intelligence' && <SkillsIntelligence />}
-          {sidebarView === 'vulnerability-index' && <VulnerabilityIndex />}
           {sidebarView === 'skill-gaps' && <SkillsIntelligence />}
 
           {sidebarView === 'personal-career' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              <div className="lg:col-span-6 flex flex-col gap-4">
+              <div className="lg:col-span-6 flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
                 <div className="card p-4 text-sm text-indigo-800 leading-relaxed font-medium dark:text-indigo-300 dark:bg-indigo-900/20">
                   <span className="font-bold block mb-1">Worker Intelligence Parser</span>
                   Input your professional experience to run regional indexing queries on active local skill gaps, hiring velocities, and timeline roadmaps.

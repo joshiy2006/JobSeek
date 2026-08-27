@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShieldAlert, TrendingDown, TrendingUp, Award, Send, Loader } from 'lucide-react';
+import { ShieldAlert, TrendingDown, TrendingUp, Award, Send } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export default function LiveAnalysis({ analysisResult }) {
   const [messages, setMessages] = useState([]);
@@ -11,9 +13,12 @@ export default function LiveAnalysis({ analysisResult }) {
     if (analysisResult) {
       const city = analysisResult.city;
       const title = analysisResult.submittedProfile.jobTitle;
+      const lowConfidenceNote = analysisResult.role_match_is_low_confidence
+        ? ' Note: this data covers Data/AI/Analytics roles primarily, so this is a best-effort match to the closest available category rather than a precise fit for your field.'
+        : '';
       setMessages([{
         role: 'ai',
-        text: `Analysis finalized for "${title}" in ${city}.\n\nI have cross-referenced your profile with local hiring contracts, SWAYAM curriculums, and national AI JDs. Ask me any question below or use the quick access queries.`,
+        text: `Analysis ready for "${title}"${city ? ` in ${city}` : ''}.${lowConfidenceNote}\n\nAsk me anything about your skill gaps, the reskilling roadmap, or real demand for your matched category below.`,
         timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
       }]);
     }
@@ -32,41 +37,22 @@ export default function LiveAnalysis({ analysisResult }) {
         </div>
         <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">Awaiting Profile Submission</h3>
         <p className="text-sm text-slate-500 max-w-sm mt-2 leading-relaxed dark:text-slate-400">
-          Submit your workforce profile on the left to compute vulnerability models, curriculum paths, and start your chatbot session.
+          Submit your workforce profile on the left to see your real skill gaps and a reskilling roadmap.
         </p>
       </div>
     );
   }
 
-  const { score, severity, primaryDriver, momChange, activeListings, peerComparison, city, roadmap, chatbotSessions } = analysisResult;
-
-  const radius = 60;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (score / 100) * circumference;
-
-  let gaugeColor = 'stroke-emerald-600';
-  let badgeClass = 'badge badge-emerald';
-  let scoreTextColor = 'text-emerald-600';
-
-  if (score >= 75) {
-    gaugeColor = 'stroke-orange-500';
-    badgeClass = 'badge badge-orange';
-    scoreTextColor = 'text-orange-600';
-  } else if (score >= 40) {
-    gaugeColor = 'stroke-indigo-600';
-    badgeClass = 'badge badge-indigo';
-    scoreTextColor = 'text-indigo-600';
-  }
+  const { momChange, activeListings, city, roadmap } = analysisResult;
 
   const quickPrompts = [
-    { label: 'Why is my risk score so high?', query: 'why is my risk score so high?' },
-    { label: 'What jobs are safer in my city?', query: 'what jobs are safer for someone like me in my city?' },
-    { label: 'Show paths under 3 months', query: 'show me paths that take less than 3 months.' },
-    { label: 'BPO jobs in Indore?', query: 'how many active bpo jobs are in indore right now?' },
-    { label: 'मुझे कहाँ से शुरू करना चाहिए?', query: 'मुझे कहाँ से शुरू करना चाहिए? (hindi support)' },
+    { label: 'Why these skills?', query: 'why were these specific skills chosen for my gap analysis?' },
+    { label: 'Shortest path first', query: 'which item in my roadmap can I finish fastest?' },
+    { label: 'Is this role in demand?', query: 'is my matched job category in high demand right now?' },
+    { label: 'मुझे कहाँ से शुरू करना चाहिए?', query: 'मुझे कहाँ से शुरू करना चाहिए?' },
   ];
 
-  const handleSendMessage = (text) => {
+  const handleSendMessage = async (text) => {
     if (!text.trim()) return;
 
     const userMsg = {
@@ -78,62 +64,45 @@ export default function LiveAnalysis({ analysisResult }) {
     setInputText('');
     setIsChatTyping(true);
 
-    setTimeout(() => {
-      const normalizedQuery = text.trim().toLowerCase();
-      let responseText = `I have parsed your query. For advanced regional simulations, please use one of our verified database triggers. Let me know if you would like me to detail your "${analysisResult.submittedProfile.jobTitle}" career transition route.`;
-
-      const matchedKey = Object.keys(chatbotSessions).find(k => normalizedQuery.includes(k) || k.includes(normalizedQuery));
-      if (matchedKey) responseText = chatbotSessions[matchedKey];
-
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/career-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, context: analysisResult }),
+      });
+      if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+      const json = await res.json();
       setMessages(prev => [...prev, {
         role: 'ai',
-        text: responseText,
+        text: json.reply,
         timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
       }]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        text: "Sorry, I couldn't reach the analysis service just now — try again in a moment.",
+        timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      }]);
+    } finally {
       setIsChatTyping(false);
-    }, 500);
+    }
   };
 
   return (
     <div className="flex flex-col gap-5">
 
-      {/* Risk Score Card */}
+      {/* Real demand snapshot for the matched category (+ city, if given).
+          No AVS risk score / peer comparison — no defined methodology
+          exists for that, so it's left out rather than faked. */}
       <div className="card p-5 dark:bg-slate-900">
-        <div className="flex flex-col sm:flex-row items-center gap-6 justify-between">
-          <div className="relative flex items-center justify-center shrink-0">
-            <svg className="w-32 h-32 transform -rotate-90">
-              <circle cx="64" cy="64" r={radius} className="stroke-slate-100 fill-transparent" strokeWidth="8" />
-              <circle
-                cx="64" cy="64" r={radius}
-                className={`fill-transparent transition-all duration-1000 ease-out ${gaugeColor}`}
-                strokeWidth="8" strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset} strokeLinecap="round"
-              />
-            </svg>
-            <div className="absolute text-center">
-              <span className={`text-3xl font-bold font-mono leading-none ${scoreTextColor}`}>{score}</span>
-              <span className="text-[10px] text-slate-400 font-bold block uppercase mt-1">AVS Index</span>
-            </div>
-          </div>
-
-          <div className="flex-1 text-center sm:text-left">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-2">
-              <span className={badgeClass}>{severity}</span>
-              <span className="badge badge-slate">Peers: {peerComparison}</span>
-            </div>
-            <h3 className="text-base font-bold text-slate-900 mb-1 font-heading dark:text-slate-100">Personal AI Risk Assessment</h3>
-            <p className="text-sm text-slate-500 font-medium dark:text-slate-400">
-              Primary Vulnerability Factor:
-              <span className="text-indigo-600 font-bold block mt-0.5">{primaryDriver}</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
+        <h3 className="text-sm font-bold text-slate-900 mb-3 font-heading dark:text-slate-100">
+          Real Demand Snapshot — {analysisResult.matched_role_category}
+        </h3>
+        <div className="grid grid-cols-2 gap-3">
           <div className="card-flat p-3.5 flex items-center justify-between dark:bg-slate-800">
             <div>
-              <span className="section-label block">Demand Shift</span>
-              <span className="font-bold text-slate-700 text-sm dark:text-slate-300">{city}</span>
+              <span className="section-label block">Demand Shift (30d)</span>
+              <span className="font-bold text-slate-700 text-sm dark:text-slate-300">{city || 'All India'}</span>
             </div>
             {momChange < 0 ? (
               <span className="text-orange-500 font-bold font-mono text-sm flex items-center gap-1">
@@ -148,20 +117,25 @@ export default function LiveAnalysis({ analysisResult }) {
           <div className="card-flat p-3.5 flex items-center justify-between dark:bg-slate-800">
             <div>
               <span className="section-label block">Active Listings</span>
-              <span className="font-bold text-slate-700 text-sm dark:text-slate-300">Job Matches</span>
+              <span className="font-bold text-slate-700 text-sm dark:text-slate-300">Last 30 days</span>
             </div>
             <span className="text-indigo-600 font-bold font-mono text-sm">{activeListings} jobs</span>
           </div>
         </div>
+        {analysisResult.role_match_is_low_confidence && (
+          <p className="text-[11px] text-orange-500 font-semibold mt-3">
+            Best-effort match — this dataset covers Data/AI/Analytics roles primarily, so precision may be lower for your specific field.
+          </p>
+        )}
       </div>
 
       {/* Roadmap */}
       <div className="card p-5 dark:bg-slate-900">
         <div className="mb-4 border-b border-slate-100 pb-3 dark:border-slate-800">
           <h3 className="text-sm font-bold text-slate-900 font-heading dark:text-slate-100">
-            Multi-Week Reskilling Path
+            Reskilling Roadmap
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Verified curriculum milestones from Indian public portals</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Based on real trending skills you don't yet have, matched against the NPTEL catalog</p>
         </div>
 
         <div className="relative pl-5 border-l-2 border-slate-200 space-y-4 ml-3 dark:border-slate-700">
@@ -184,7 +158,7 @@ export default function LiveAnalysis({ analysisResult }) {
                 </div>
                 <p className="text-sm text-slate-600 font-medium leading-relaxed mb-3 dark:text-slate-400">{week.goals}</p>
                 <div className="bg-white border-l-4 border-indigo-600 px-3 py-2 rounded-r-lg border border-slate-200 border-l-0 text-xs text-slate-500 leading-relaxed italic font-medium dark:bg-slate-900 dark:border-slate-700 dark:border-l-indigo-600 dark:text-slate-400">
-                  <strong className="text-slate-700 not-italic dark:text-slate-300">Rationale:</strong> {week.justification}
+                  <strong className="text-slate-700 not-italic dark:text-slate-300">Why:</strong> {week.justification}
                 </div>
               </div>
             </div>
@@ -192,12 +166,12 @@ export default function LiveAnalysis({ analysisResult }) {
         </div>
       </div>
 
-      {/* Chatbot */}
+      {/* Chatbot — real Groq-backed answers grounded in this analysis */}
       <div className="card p-5 flex flex-col h-[480px] dark:bg-slate-900">
         <div className="border-b border-slate-100 pb-3 mb-3 flex items-center justify-between dark:border-slate-800">
           <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Bilingual AI Career Co-Pilot (EN/HI)</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Session active for your profile</p>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Career Co-Pilot (EN/HI)</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Grounded in your analysis above</p>
           </div>
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
         </div>
