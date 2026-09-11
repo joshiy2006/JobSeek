@@ -1,13 +1,33 @@
 import { Bot, X } from 'lucide-react';
 import { supabase } from './supabaseClient';
-
-const {
-  data: { session },
-} = await supabase.auth.getSession();
-
-const token = session?.access_token;
+import { useState, useEffect } from 'react';
 
 function ChatDrawer({ isOpen, onClose }) {
+  const [ticketId, setTicketId] = useState(null);
+
+  // Generate the ticket EXACTLY ONCE when the app/component loads
+  useEffect(() => {
+    async function initAuthTicket() {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.access_token) {
+        const newTicket = crypto.randomUUID();
+        
+        const { error } = await supabase
+          .from('auth_tickets')
+          .insert([{ id: newTicket, access_token: session.access_token }]);
+
+        if (!error) {
+          setTicketId(newTicket);
+        } else {
+          console.error('Failed to generate auth ticket:', error);
+        }
+      }
+    }
+
+    initAuthTicket();
+  }, []); // <-- Empty dependency array ensures this only runs once
+
   return (
     <>
       {/* Backdrop */}
@@ -44,14 +64,22 @@ function ChatDrawer({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Iframe */}
-        <div className="flex-1 overflow-hidden">
-          <iframe
-            src={`https://jobseek-chatbot-45v4kguaiqkkjj6kjqty7w.streamlit.app/?embed=true&token=${encodeURIComponent(token)}`}
-            title="Bilingual AI Career Co-Pilot"
-            className="w-full h-full border-none"
-            allow="microphone; camera"
-          />
+        {/* Iframe - Always rendered if we have a ticket, just hidden via CSS when drawer is closed */}
+        <div className="flex-1 overflow-hidden relative">
+          {!ticketId && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-slate-900 z-10">
+              <span className="text-sm text-slate-500 animate-pulse">Initializing Secure Connection...</span>
+            </div>
+          )}
+          
+          {ticketId && (
+            <iframe
+              src={`https://jobseek-chatbot-45v4kguaiqkkjj6kjqty7w.streamlit.app/?embed=true&ticket=${ticketId}`}
+              title="Bilingual AI Career Co-Pilot"
+              className="w-full h-full border-none"
+              allow="microphone; camera"
+            />
+          )}
         </div>
       </div>
     </>

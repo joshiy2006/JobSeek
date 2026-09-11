@@ -1,4 +1,4 @@
-// Skills Mirage - Mock Data and Simulation Engine
+//JobSeek - Mock Data and Simulation Engine
 
 export const CITIES = [
   { id: 'pune', name: 'Pune', state: 'Maharashtra', tier: 'Tier-2' },
@@ -25,77 +25,49 @@ export const CITIES = [
 
 export const SECTORS = [
   { id: 'all', name: 'All Sectors' },
- 
   {
     id: 'it',
     name: 'Information Technology',
-    industries: [
-      'IT-Software / Software Services',   // 9,205 rows — the dominant one
-      'IT-Hardware & Networking',          // 208 rows
+    keywords: [
+      'software', 'developer', 'engineer', 'it-software', 
+      'networking', 'hardware', 'react', 'python', 'java'
     ],
   },
- 
   {
     id: 'bpo',
     name: 'BPO & Customer Operations',
-    industries: [
-      'BPO / Call Centre / ITES',          // 1,250 rows
+    keywords: [
+      'bpo', 'call centre', 'ites', 'customer support', 'voice process'
     ],
   },
- 
   {
     id: 'bfsi',
     name: 'BFSI (Banking & Finance)',
-    industries: [
-      'Banking / Financial Services / Broking', // 1,232 rows
-      'Accounting / Finance',                   // 227 rows
-      'Insurance',                               // 169 rows
+    keywords: [
+      'banking', 'financial', 'broking', 'accounting', 'finance', 'insurance'
     ],
   },
- 
   {
     id: 'healthcare',
     name: 'Healthcare & Pharma',
-    industries: [
-      'Pharma / Biotech / Clinical Research', // 524 rows
-      'Medical / Healthcare / Hospitals',     // 495 rows
-      'Medical Devices / Equipments',         // 4 rows
+    keywords: [
+      'pharma', 'biotech', 'clinical', 'medical', 'healthcare', 'hospital', 'devices'
     ],
   },
- 
   {
     id: 'manufacturing',
     name: 'Manufacturing & Auto',
-    industries: [
-      'Automobile / Auto Anciliary / Auto Components',  // 476 rows
-      'Construction / Engineering / Cement / Metals',   // 449 rows
-      'Industrial Products / Heavy Machinery',          // 307 rows
-      'Consumer Electronics / Appliances / Durables',   // 155 rows
-      'Semiconductors / Electronics',                   // 149 rows
-      'Textiles / Garments / Accessories',              // 126 rows
-      'Electricals / Switchgears',                      // 93 rows
-      'Chemicals / PetroChemical / Plastic / Rubber',   // 90 rows
-      'Printing / Packaging',                           // 39 rows
-      'Iron and Steel',                                 // 24 rows
-      'Ceramics / Sanitary ware',                        // 21 rows
-      'Food Processing',                                 // 18 rows
-      'Office Equipment / Automation',                  // 13 rows
-      'Heat Ventilation / Air Conditioning',            // 12 rows
-      'Fertilizers / Pesticides',                        // 7 rows
-      'Glass / Glassware',                               // 7 rows
-      'Tyres',                                           // 5 rows
-      'Brewery / Distillery',                            // 4 rows
-      'Pulp and Paper',                                  // 2 rows
-      'Leather',                                         // 1 row
+    keywords: [
+      'automobile', 'auto', 'manufacturing', 'construction', 'engineering', 
+      'cement', 'metals', 'machinery', 'electronics', 'textiles', 
+      'chemicals', 'plastic', 'steel', 'processing'
     ],
   },
- 
   {
     id: 'retail',
     name: 'Retail & E-commerce',
-    industries: [
-      'Internet / Ecommerce',   // 738 rows
-      'Retail / Wholesale',     // 184 rows
+    keywords: [
+      'internet', 'ecommerce', 'retail', 'wholesale', 'sales'
     ],
   },
 ];

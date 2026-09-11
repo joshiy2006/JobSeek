@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Briefcase, DollarSign, Clock, X, CircleAlert as AlertCircle, Sparkles } from 'lucide-react';
+import { Search, MapPin, Briefcase, DollarSign, X, CircleAlert as AlertCircle, Sparkles } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export default function JobSearch() {
   const [jobTitle, setJobTitle] = useState('');
@@ -10,7 +12,9 @@ export default function JobSearch() {
   const [selectedJob, setSelectedJob] = useState(null);
   const [totalJobs, setTotalJobs] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [pageSize, setPageSize] = useState(30);
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
   const resultsTopRef = useRef(null);
 
   useEffect(() => {
@@ -19,19 +23,28 @@ export default function JobSearch() {
 
   const fetchJobs = async (title, loc, page = 1) => {
     setIsLoading(true);
+    setFetchError(null);
     try {
-      const params = new URLSearchParams({ page, page_size: 10 });
+      const params = new URLSearchParams({ page });
       if (title.trim()) params.append('title', title.trim());
       if (loc.trim()) params.append('location', loc.trim());
 
-      const response = await fetch(`http://localhost:8000/jobs?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to fetch jobs');
+      const response = await fetch(`${API_BASE_URL}/jobs?${params.toString()}`);
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.detail || `Request failed with status ${response.status}`);
+      }
       const data = await response.json();
 
       setJobs(data.jobs || []);
       setTotalJobs(data.count || 0);
+      setPageSize(data.page_size || 30);
+      setIsSearchActive(!!data.is_search);
       setSearched(true);
     } catch (error) {
+      // Distinct from a genuine zero-result search — surface what
+      // actually went wrong instead of masquerading as "no jobs found".
+      setFetchError(error.message || 'Could not reach the job search service.');
       setJobs([]);
       setSearched(true);
     } finally {
@@ -45,32 +58,25 @@ export default function JobSearch() {
     fetchJobs(jobTitle, location, 1);
   };
 
-  const getMockSalary = (job) => {
-    const exp = job.experience ? job.experience.toLowerCase() : '';
-    if (exp.includes('0-2') || exp.includes('0-3') || exp.includes('1-3') || exp.includes('0-1')) return '₹4–8 LPA';
-    if (exp.includes('2-4') || exp.includes('2-5') || exp.includes('3-5') || exp.includes('3-6')) return '₹8–12 LPA';
-    if (exp.includes('5-10') || exp.includes('8-12') || exp.includes('5+')) return '₹15–25 LPA';
-    const seed = job.id % 3;
-    if (seed === 0) return '₹6–10 LPA';
-    if (seed === 1) return '₹10–15 LPA';
-    return '₹12–18 LPA';
+  // Real salary data — new_jobs_data has actual minimumSalary/
+  // maximumSalary/currency columns, but they're stored as TEXT and as
+  // raw rupee amounts, not LPA. Two things to handle: "0" is a
+  // non-empty string (truthy in JS) even though the value means "not
+  // disclosed", and 1500000 needs converting to 15 (lakhs) for display.
+  const toLakhs = (rupees) => {
+    const lakhs = rupees / 100000;
+    return Number.isInteger(lakhs) ? String(lakhs) : lakhs.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
   };
 
-  const getMockEmploymentType = (job) => {
-    const seed = job.id % 4;
-    if (seed === 0) return 'Full Time';
-    if (seed === 1) return 'Full Time (Remote)';
-    if (seed === 2) return 'Contract';
-    return 'Full Time';
-  };
+  const formatSalary = (job) => {
+    const min = Number(job.minimumSalary);
+    const max = Number(job.maximumSalary);
+    const hasValidRange = Number.isFinite(min) && Number.isFinite(max) && min > 0 && max > 0;
 
-  const getMockPosted = (job) => {
-    const seed = job.id % 5;
-    if (seed === 0) return 'Just now';
-    if (seed === 1) return '1 day ago';
-    if (seed === 2) return '2 days ago';
-    if (seed === 3) return '3 days ago';
-    return '5 days ago';
+    if (!hasValidRange) return 'Not disclosed';
+
+    const currency = job.currency || '₹';
+    return `${currency}${toLakhs(min)}–${toLakhs(max)} LPA`;
   };
 
   const formatSkills = (skillsStr) => {
@@ -78,7 +84,7 @@ export default function JobSearch() {
     return skillsStr.split(',').map(s => s.trim()).filter(Boolean);
   };
 
-  const totalPages = Math.ceil(totalJobs / itemsPerPage);
+  const totalPages = Math.ceil(totalJobs / pageSize);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -159,22 +165,34 @@ export default function JobSearch() {
             <div className="w-8 h-8 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-3" />
             <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Searching jobs...</p>
           </div>
+        ) : fetchError ? (
+          <div className="card p-12 flex flex-col items-center justify-center text-center max-w-xl mx-auto border border-orange-200 dark:bg-slate-900">
+            <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center mb-3">
+              <AlertCircle className="w-6 h-6 text-orange-500" />
+            </div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">Couldn't load jobs</h3>
+            <p className="text-sm text-orange-600 mt-1.5 max-w-sm font-medium">{fetchError}</p>
+          </div>
         ) : jobs.length > 0 ? (
           <div className="flex flex-col gap-3">
             <div className="flex justify-between items-center text-sm font-semibold text-slate-500 px-1 dark:text-slate-400">
-              <span>{totalJobs.toLocaleString('en-IN')} matching jobs</span>
+              <span>
+                {isSearchActive
+                  ? `${totalJobs.toLocaleString('en-IN')} matching jobs`
+                  : `Showing the ${jobs.length} most recent listings`}
+              </span>
               <span className="badge badge-indigo">Active Listings</span>
             </div>
 
             {jobs.map((job) => (
               <div
-                key={job.id}
+                key={job.jobId}
                 className="card card-hover p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 dark:bg-slate-900"
               >
                 <div className="flex-1 space-y-3 w-full">
                   <div>
-                    <h4 className="text-base font-bold text-slate-900 dark:text-slate-100">{job.jobtitle}</h4>
-                    <p className="text-sm font-medium text-slate-500 mt-0.5 dark:text-slate-400">{job.company}</p>
+                    <h4 className="text-base font-bold text-slate-900 dark:text-slate-100">{job.title}</h4>
+                    <p className="text-sm font-medium text-slate-500 mt-0.5 dark:text-slate-400">{job.companyName}</p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 font-medium dark:text-slate-400">
@@ -184,31 +202,27 @@ export default function JobSearch() {
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-                      {job.experience || '0-2 Yrs'}
+                      {job.experience || 'Not specified'}
                     </span>
                     <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
                       <DollarSign className="w-3.5 h-3.5" />
-                      {getMockSalary(job)}
+                      {formatSalary(job)}
                     </span>
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex flex-wrap gap-1.5 dark:border-slate-800">
-                    {formatSkills(job.skills).slice(0, 4).map((skill, idx) => (
+                    {formatSkills(job.tagsAndSkills).slice(0, 4).map((skill, idx) => (
                       <span key={idx} className="badge badge-slate normal-case tracking-normal">
                         {skill}
                       </span>
                     ))}
-                    {formatSkills(job.skills).length === 0 && (
+                    {formatSkills(job.tagsAndSkills).length === 0 && (
                       <span className="text-xs text-slate-400">General Skills</span>
                     )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="hidden md:flex items-center gap-1 text-xs text-slate-400 font-medium">
-                    <Clock className="w-3.5 h-3.5" />
-                    {getMockPosted(job)}
-                  </span>
                   <button
                     onClick={() => setSelectedJob(job)}
                     className="btn-primary px-4 py-2.5 text-xs"
@@ -230,7 +244,7 @@ export default function JobSearch() {
                   ← Previous
                 </button>
                 <span className="px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-bold text-xs dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">
-                  Page {currentPage} of {totalPages}
+                  Page {currentPage} of {totalPages.toLocaleString('en-IN')}
                 </span>
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
@@ -261,8 +275,8 @@ export default function JobSearch() {
           <div className="card max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col dark:bg-slate-900">
             <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-start dark:border-slate-800">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{selectedJob.jobtitle}</h3>
-                <p className="text-sm font-medium text-slate-500 mt-0.5 dark:text-slate-400">{selectedJob.company}</p>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{selectedJob.title}</h3>
+                <p className="text-sm font-medium text-slate-500 mt-0.5 dark:text-slate-400">{selectedJob.companyName}</p>
               </div>
               <button
                 onClick={() => setSelectedJob(null)}
@@ -273,7 +287,7 @@ export default function JobSearch() {
             </div>
 
             <div className="p-6 space-y-5 flex-1 overflow-y-auto">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 card-flat p-4 text-xs font-semibold dark:bg-slate-800">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 card-flat p-4 text-xs font-semibold dark:bg-slate-800">
                 <div>
                   <span className="section-label block mb-1">Location</span>
                   <span className="text-slate-800 flex items-center gap-1 dark:text-slate-200">
@@ -285,29 +299,33 @@ export default function JobSearch() {
                   <span className="section-label block mb-1">Experience</span>
                   <span className="text-slate-800 flex items-center gap-1 dark:text-slate-200">
                     <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-                    {selectedJob.experience || '0-2 Yrs'}
+                    {selectedJob.experience || 'Not specified'}
                   </span>
                 </div>
                 <div>
                   <span className="section-label block mb-1">Salary Range</span>
                   <span className="text-emerald-600 flex items-center gap-1 font-bold">
                     <DollarSign className="w-3.5 h-3.5" />
-                    {getMockSalary(selectedJob)}
+                    {formatSalary(selectedJob)}
                   </span>
                 </div>
-                <div>
-                  <span className="section-label block mb-1">Type</span>
-                  <span className="text-slate-800 dark:text-slate-200">{getMockEmploymentType(selectedJob)}</span>
-                </div>
+                {selectedJob.AggregateRating && (
+                  <div>
+                    <span className="section-label block mb-1">Company Rating</span>
+                    <span className="text-slate-800 dark:text-slate-200">
+                      {selectedJob.AggregateRating} ★ {selectedJob.ReviewsCount ? `(${selectedJob.ReviewsCount} reviews)` : ''}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div>
                 <h4 className="section-label mb-2">Required Skills</h4>
                 <div className="flex flex-wrap gap-2">
-                  {formatSkills(selectedJob.skills).map((skill, idx) => (
+                  {formatSkills(selectedJob.tagsAndSkills).map((skill, idx) => (
                     <span key={idx} className="badge badge-indigo normal-case tracking-normal">{skill}</span>
                   ))}
-                  {formatSkills(selectedJob.skills).length === 0 && (
+                  {formatSkills(selectedJob.tagsAndSkills).length === 0 && (
                     <span className="text-xs text-slate-400 italic">No skills listed</span>
                   )}
                 </div>
@@ -316,7 +334,7 @@ export default function JobSearch() {
               <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
                 <h4 className="section-label mb-2">Job Description</h4>
                 <div className="card-flat p-4 text-sm text-slate-600 leading-relaxed whitespace-pre-line font-medium dark:bg-slate-800 dark:text-slate-300">
-                  {selectedJob.page_content || `No detailed description available for this role. Key skills include: ${selectedJob.skills}. Required experience: ${selectedJob.experience}.`}
+                  {selectedJob.jobDescription || `No detailed description available for this role. Key skills include: ${selectedJob.tagsAndSkills}. Required experience: ${selectedJob.experience}.`}
                 </div>
               </div>
             </div>
@@ -325,13 +343,16 @@ export default function JobSearch() {
               <button onClick={() => setSelectedJob(null)} className="btn-secondary px-5 py-2.5 text-xs">
                 Close
               </button>
+              {/* No job_link column exists in new_jobs_data, so this
+                  always falls back to a Google search — not a direct
+                  apply link, unlike the previous dataset. */}
               <a
-                href={selectedJob.job_link || `https://www.google.com/search?q=${encodeURIComponent(selectedJob.jobtitle + ' ' + selectedJob.company + ' job')}`}
+                href={`https://www.google.com/search?q=${encodeURIComponent(selectedJob.title + ' ' + selectedJob.companyName + ' job')}`}
                 target="_blank"
                 rel="noreferrer"
                 className="btn-primary px-5 py-2.5 text-xs flex items-center justify-center"
               >
-                Apply on Partner Site
+                Search for This Role
               </a>
             </div>
           </div>

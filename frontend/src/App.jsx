@@ -1,21 +1,30 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from './components/supabaseClient';
+import { CITIES } from './utils/mockData';
 import LandingPage from './components/LandingPage';
 import LoginModal from './components/LoginModal';
 import HiringTrends from './components/HiringTrends';
 import SkillsIntelligence from './components/SkillsIntelligence';
-import VulnerabilityIndex from './components/VulnerabilityIndex';
 import WorkerIntake from './components/WorkerIntake';
 import LiveAnalysis from './components/LiveAnalysis';
 import ChatDrawer from './components/ChatDrawer';
 import JobSearch from './components/JobSearch';
-import { analyzeWorkerProfile } from './utils/mockData';
 import {
   Cpu, Globe, Award, UserCheck, Settings, LogOut, Activity,
   Lock, Database, Search, Bot, X, Menu,
 } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Real auth state, driven by Supabase's actual session — not a
+  // locally-toggled flag. This is what was missing: nothing was ever
+  // checking whether a session already existed (e.g. right after the
+  // Google OAuth redirect completes) or listening for one to appear.
+  const [session, setSession] = useState(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const isAuthenticated = !!session;
+
   const [showLogin, setShowLogin] = useState(false);
   const [sidebarView, setSidebarView] = useState('job-search');
   const [chatOpen, setChatOpen] = useState(false);
@@ -29,8 +38,29 @@ export default function App() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisError, setAnalysisError] = useState(null);
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'system');
+
+  useEffect(() => {
+    // 1. On first load, pick up a session that may already exist —
+    //    this is the case right after Google's redirect lands back here.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setCheckingSession(false);
+    });
+
+    // 2. Keep listening for the rest of the app's life. This is what
+    //    actually catches "the OAuth redirect just finished" for a user
+    //    who was already sitting on the landing page when it happened,
+    //    and also catches sign-outs from elsewhere (e.g. another tab).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setShowLogin(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -48,27 +78,56 @@ export default function App() {
     }
   }, [theme]);
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    // onAuthStateChange fires from this and clears `session` for us —
+    // but reset view-only state here since that's this component's job.
+    setAnalysisResult(null);
+  };
+
   const handleProfileSubmit = async () => {
     setIsLoading(true);
+    setAnalysisError(null);
+
+    const cityName = CITIES.find((c) => c.id === profileData.city)?.name || null;
+
     try {
-      const response = await fetch('/api/v1/analyze-profile', {
+      const response = await fetch(`${API_BASE_URL}/api/skills-gap-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profileData),
+        body: JSON.stringify({
+          job_title: profileData.jobTitle,
+          city: cityName,
+          years_experience: profileData.experience,
+          write_up: profileData.writeUp,
+        }),
       });
-      if (response.ok) {
-        const data = await response.json();
-        setAnalysisResult(data);
-      } else {
-        throw new Error(`Server returned status: ${response.status}`);
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.detail || `Server returned status: ${response.status}`);
       }
+      const data = await response.json();
+      setAnalysisResult(data);
     } catch (err) {
-      const mockResult = await analyzeWorkerProfile(profileData);
-      setAnalysisResult(mockResult);
+      // No mock fallback — a failed request should surface as an error,
+      // not silently swap in fake data the user has no way to tell apart
+      // from a real analysis.
+      setAnalysisError(err.message || 'Could not compute your analysis right now.');
+      setAnalysisResult(null);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Avoid a flash of the landing page while we're still checking for an
+  // existing session (e.g. mid-way through the OAuth redirect landing).
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -76,10 +135,7 @@ export default function App() {
         <LandingPage onAccess={() => setShowLogin(true)} />
         {showLogin && (
           <LoginModal
-            onLoginSuccess={() => {
-              setIsAuthenticated(true);
-              setShowLogin(false);
-            }}
+            onLoginSuccess={() => setShowLogin(false)}
             onCancel={() => setShowLogin(false)}
           />
         )}
@@ -91,7 +147,6 @@ export default function App() {
     { id: 'job-search', label: 'Job Search', icon: Search },
     { id: 'hiring-trends', label: 'Hiring Trends', icon: Globe },
     { id: 'skills-intelligence', label: 'Skills Intelligence', icon: Cpu },
-    { id: 'skill-gaps', label: 'Skill Gaps Map', icon: Award },
     { id: 'personal-career', label: 'Personal Career', icon: UserCheck },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -143,10 +198,7 @@ export default function App() {
               <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">Live Session</span>
             </div>
             <button
-              onClick={() => {
-                setIsAuthenticated(false);
-                setAnalysisResult(null);
-              }}
+              onClick={handleLogout}
               className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors text-slate-500 cursor-pointer dark:border-slate-700 dark:hover:bg-slate-800 dark:text-slate-400"
               title="Logout"
             >
@@ -200,7 +252,6 @@ export default function App() {
           {sidebarView === 'job-search' && <JobSearch />}
           {sidebarView === 'hiring-trends' && <HiringTrends />}
           {sidebarView === 'skills-intelligence' && <SkillsIntelligence />}
-          {sidebarView === 'skill-gaps' && <SkillsIntelligence />}
 
           {sidebarView === 'personal-career' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -209,6 +260,11 @@ export default function App() {
                   <span className="font-bold block mb-1">Worker Intelligence Parser</span>
                   Input your professional experience to run regional indexing queries on active local skill gaps, hiring velocities, and timeline roadmaps.
                 </div>
+                {analysisError && (
+                  <div className="card p-4 border border-orange-200 bg-orange-50 text-orange-700 text-sm dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-400">
+                    {analysisError}
+                  </div>
+                )}
                 <WorkerIntake
                   onSubmit={handleProfileSubmit}
                   isLoading={isLoading}
@@ -334,7 +390,7 @@ export default function App() {
 
               <div className="border-t border-slate-100 pt-6 dark:border-slate-800">
                 <button
-                  onClick={() => setIsAuthenticated(false)}
+                  onClick={handleLogout}
                   className="px-5 py-3 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-600 font-bold text-sm transition-colors cursor-pointer dark:bg-orange-900/30 dark:border-orange-800/50 dark:text-orange-500 dark:hover:bg-orange-900/50"
                 >
                   Logout Session
@@ -345,7 +401,7 @@ export default function App() {
 
           <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400 mt-6 shrink-0 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-500">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4">
-              <p>&copy; 2026 Skills Mirage. India's Open Workforce Intelligence protocol.</p>
+              <p>&copy; 2026 JobSeek. India's Open Workforce Intelligence protocol.</p>
               <div className="flex gap-4">
                 <span className="hover:text-indigo-600 cursor-pointer">Privacy Charter</span>
                 <span className="hover:text-indigo-600 cursor-pointer">FastAPI Schema</span>

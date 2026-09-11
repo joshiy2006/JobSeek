@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CITIES, SECTORS } from '../utils/mockData'; // still used for the filter menus themselves
+import { CITIES } from '../utils/mockData'; // city list still used for the menu itself
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Search, Calendar, Briefcase, MapPin, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
+import { Search, Calendar, MapPin, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
 
-// Point this at your FastAPI base URL (env var recommended)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export default function HiringTrends() {
   const [timeframe, setTimeframe] = useState('30d');
   const [selectedCity, setSelectedCity] = useState('all');
-  const [selectedSector, setSelectedSector] = useState('all');
   const [searchCity, setSearchCity] = useState('');
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [chartData, setChartData] = useState([]);
@@ -17,7 +15,6 @@ export default function HiringTrends() {
   const [apiError, setApiError] = useState(null);
 
   const activeCity = CITIES.find((c) => c.id === selectedCity);
-  const activeSector = SECTORS.find((s) => s.id === selectedSector);
 
   const fetchTrends = useCallback(
     async (signal) => {
@@ -26,19 +23,8 @@ export default function HiringTrends() {
 
       const params = new URLSearchParams({ timeframe });
 
-      // city filter: send the real city name, backend matches it
-      // against joblocation_address
       if (activeCity && selectedCity !== 'all') {
         params.set('city', activeCity.name);
-      }
-
-      // sector filter: each SECTORS entry needs an `industries` array
-      // added in mockData.js — the exact `industry` column values that
-      // belong to that sector bucket, e.g.:
-      //   { id: 'bfsi', name: 'BFSI (Banking & Finance)',
-      //     industries: ['Banking / Financial Services / Broking', 'Accounting / Finance', 'Insurance'] }
-      if (activeSector && selectedSector !== 'all' && activeSector.industries?.length) {
-        activeSector.industries.forEach((ind) => params.append('industries', ind));
       }
 
       try {
@@ -55,7 +41,7 @@ export default function HiringTrends() {
         setIsApiLoading(false);
       }
     },
-    [timeframe, selectedCity, selectedSector, activeCity, activeSector]
+    [timeframe, selectedCity, activeCity]
   );
 
   useEffect(() => {
@@ -161,35 +147,18 @@ export default function HiringTrends() {
           </div>
         </div>
 
-        <div>
-          <label className="flex items-center gap-2 section-label mb-3">
-            <Briefcase className="w-4 h-4 text-indigo-600" />
-            Industry Sector
-          </label>
-          <div className="flex flex-col gap-1.5">
-            {SECTORS.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setSelectedSector(s.id)}
-                className={`w-full text-left px-4 py-2.5 text-sm rounded-xl transition-all border flex items-center justify-between cursor-pointer ${
-                  selectedSector === s.id
-                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-400'
-                    : 'text-slate-600 bg-slate-50 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
-                }`}
-              >
-                <span>{s.name}</span>
-                {selectedSector === s.id && <span className="w-2 h-2 rounded-full bg-indigo-600" />}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Industry Sector filter removed — new_jobs_data has no
+            industry/sector column to filter on. If you want this back,
+            it would need approximating from tagsAndSkills keyword
+            matching, which needs real keyword mapping work first (the
+            same lesson learned with the old jobs.industry column). */}
 
         <div className="pt-4 border-t border-slate-100 text-xs text-slate-400 dark:border-slate-800">
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-bold text-slate-600 dark:text-slate-400">Active Live API Feed</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="font-bold text-slate-600 dark:text-slate-400">97k+ listings tracked</span>
           </div>
-          <p>Analyzing job listing indexes every 6 hours.</p>
+          <p>Dates are relative to each posting's scrape time.</p>
         </div>
       </aside>
 
@@ -217,7 +186,7 @@ export default function HiringTrends() {
           </div>
 
           <div className="card p-5 dark:bg-slate-900">
-            <p className="section-label">MoM Change</p>
+            <p className="section-label">Change</p>
             {isApiLoading ? (
               <div className="skeleton h-8 w-24 mt-2" />
             ) : (
@@ -253,16 +222,16 @@ export default function HiringTrends() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
             <div>
               <h3 className="text-base font-bold text-slate-900 font-heading dark:text-slate-100">
-                Market Volume & Openings Trends
+                Market Volume & Salary Transparency
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active JDs vs total open positions over selected timeframe</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active listings vs listings with a disclosed salary</p>
             </div>
             <div className="text-xs font-semibold text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg bg-slate-50 flex items-center gap-4 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
               <span className="flex items-center gap-1.5">
                 <span className="w-3 h-3 bg-indigo-600 rounded" /> Listings
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 bg-emerald-600 rounded" /> Openings
+                <span className="w-3 h-3 bg-emerald-600 rounded" /> Salary Disclosed
               </span>
             </div>
           </div>
@@ -281,7 +250,7 @@ export default function HiringTrends() {
                       <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15} />
                       <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                     </linearGradient>
-                    <linearGradient id="colorOpenings" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="colorSalaryDisclosed" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
@@ -298,7 +267,7 @@ export default function HiringTrends() {
                     }}
                   />
                   <Area type="monotone" dataKey="Listings" stroke="#4f46e5" strokeWidth={2.5} fillOpacity={1} fill="url(#colorListings)" />
-                  <Area type="monotone" dataKey="Openings" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorOpenings)" />
+                  <Area type="monotone" dataKey="SalaryDisclosed" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSalaryDisclosed)" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
