@@ -11,7 +11,7 @@ app.include_router(api_router)  # Include the API router with a prefix
 # Enable CORS so your React frontend can communicate with it
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "https://jobseek-xi.vercel.app/"], # Add your frontend URLs
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "https://jobseek-xi.vercel.app"], # Add your frontend URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
