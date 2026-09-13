@@ -1,20 +1,94 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CITIES } from '../utils/mockData'; // city list still used for the menu itself
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Search, Calendar, MapPin, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { Search, Calendar, MapPin, Briefcase, Building2, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+// One color per chart line, assigned in order to whichever domains
+// come back top_n for the current filters.
+const DOMAIN_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899', '#84cc16'];
+
+// Small reusable dropdown for single-select filters with a short,
+// fixed list of options (work mode, company size). City gets its own
+// version below since it also has a search box.
+function SimpleDropdown({ label, icon, value, options, allLabel, onChange }) {
+  const [open, setOpen] = useState(false);
+  const activeLabel = value === 'all' ? allLabel : value;
+
+  return (
+    <div className="relative">
+      <label className="flex items-center gap-2 section-label mb-3">
+        {icon}
+        {label}
+      </label>
+      <button
+        onClick={() => setOpen(!open)}
+        className="input-base w-full flex items-center justify-between px-4 py-3 text-sm cursor-pointer"
+      >
+        <span>{activeLabel}</span>
+        <ChevronDown className="w-4 h-4 text-slate-400" />
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto dark:bg-slate-800 dark:border-slate-700">
+          <div className="py-1">
+            <button
+              onClick={() => { onChange('all'); setOpen(false); }}
+              className={`w-full text-left px-5 py-2.5 text-sm transition-colors hover:bg-slate-50 hover:text-indigo-600 dark:hover:bg-slate-700 ${
+                value === 'all' ? 'text-indigo-600 font-bold bg-indigo-50/50 dark:bg-indigo-900/20' : 'text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              {allLabel}
+            </button>
+            {options.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => { onChange(opt); setOpen(false); }}
+                className={`w-full text-left px-5 py-2.5 text-sm transition-colors hover:bg-slate-50 hover:text-indigo-600 dark:hover:bg-slate-700 ${
+                  value === opt ? 'text-indigo-600 font-bold bg-indigo-50/50 dark:bg-indigo-900/20' : 'text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function HiringTrends() {
   const [timeframe, setTimeframe] = useState('30d');
   const [selectedCity, setSelectedCity] = useState('all');
+  const [selectedWorkMode, setSelectedWorkMode] = useState('all');
+  const [selectedCompanySize, setSelectedCompanySize] = useState('all');
   const [searchCity, setSearchCity] = useState('');
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
-  const [chartData, setChartData] = useState([]);
+
+  const [filterOptions, setFilterOptions] = useState({ cities: [], work_modes: [], company_sizes: [] });
+  const [totalsData, setTotalsData] = useState([]);
+  const [domainData, setDomainData] = useState([]);
+  const [domains, setDomains] = useState([]);
   const [isApiLoading, setIsApiLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
-  const activeCity = CITIES.find((c) => c.id === selectedCity);
+  // Filter options (city / work mode / company size) are fetched once
+  // — they're the real distinct values from job_data, not a fixed list.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${API_BASE_URL}/api/job-data/filter-options`, { signal: controller.signal })
+      .then((res) => res.json())
+      .then((json) => setFilterOptions({
+        cities: json.cities || [],
+        work_modes: json.work_modes || [],
+        company_sizes: json.company_sizes || [],
+      }))
+      .catch((err) => {
+        if (err.name !== 'AbortError') console.error('Could not load filter options', err);
+      });
+    return () => controller.abort();
+  }, []);
 
   const fetchTrends = useCallback(
     async (signal) => {
@@ -22,26 +96,36 @@ export default function HiringTrends() {
       setApiError(null);
 
       const params = new URLSearchParams({ timeframe });
-
-      if (activeCity && selectedCity !== 'all') {
-        params.set('city', activeCity.name);
-      }
+      if (selectedCity !== 'all') params.set('city', selectedCity);
+      if (selectedWorkMode !== 'all') params.set('work_mode', selectedWorkMode);
+      if (selectedCompanySize !== 'all') params.set('company_size', selectedCompanySize);
 
       try {
-        const res = await fetch(`${API_BASE_URL}/api/hiring-trends?${params.toString()}`, { signal });
-        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
-        const json = await res.json();
-        setChartData(json.data || []);
+        const [totalsRes, domainRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/hiring-trends?${params.toString()}`, { signal }),
+          fetch(`${API_BASE_URL}/api/hiring-trends/by-domain?${params.toString()}`, { signal }),
+        ]);
+        if (!totalsRes.ok) throw new Error(`Request failed with status ${totalsRes.status}`);
+        if (!domainRes.ok) throw new Error(`Request failed with status ${domainRes.status}`);
+
+        const totalsJson = await totalsRes.json();
+        const domainJson = await domainRes.json();
+
+        setTotalsData(totalsJson.data || []);
+        setDomainData(domainJson.data || []);
+        setDomains(domainJson.domains || []);
       } catch (err) {
         if (err.name !== 'AbortError') {
           setApiError('Could not load hiring trends right now.');
-          setChartData([]);
+          setTotalsData([]);
+          setDomainData([]);
+          setDomains([]);
         }
       } finally {
         setIsApiLoading(false);
       }
     },
-    [timeframe, selectedCity, activeCity]
+    [timeframe, selectedCity, selectedWorkMode, selectedCompanySize]
   );
 
   useEffect(() => {
@@ -50,18 +134,18 @@ export default function HiringTrends() {
     return () => controller.abort();
   }, [fetchTrends]);
 
-  const filteredCities = CITIES.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchCity.toLowerCase()) ||
-      c.state.toLowerCase().includes(searchCity.toLowerCase())
+  const filteredCities = filterOptions.cities.filter((c) =>
+    c.toLowerCase().includes(searchCity.toLowerCase())
   );
 
-  const activeCityName = selectedCity === 'all' ? 'All India (Tier-2/3)' : activeCity?.name;
+  const activeCityName = selectedCity === 'all' ? 'All Cities' : selectedCity;
 
-  const currentVolume = chartData[chartData.length - 1]?.Listings || 0;
-  const initialVolume = chartData[0]?.Listings || 0;
+  // totalsData is ordered oldest -> most-recent bucket, so first point
+  // is the oldest age-bucket and last is "Today".
+  const currentVolume = totalsData[totalsData.length - 1]?.Listings || 0;
+  const initialVolume = totalsData[0]?.Listings || 0;
   const rawChange = initialVolume > 0 ? ((currentVolume - initialVolume) / initialVolume) * 100 : 0;
-  const momChange = rawChange.toFixed(1);
+  const periodChange = rawChange.toFixed(1);
   const isPositive = rawChange >= 0;
 
   return (
@@ -94,7 +178,7 @@ export default function HiringTrends() {
         <div className="relative">
           <label className="flex items-center gap-2 section-label mb-3">
             <MapPin className="w-4 h-4 text-indigo-600" />
-            Indian City (Tier-2/3)
+            City
           </label>
           <div className="relative">
             <button
@@ -127,18 +211,17 @@ export default function HiringTrends() {
                       selectedCity === 'all' ? 'text-indigo-600 font-bold bg-indigo-50/50 dark:bg-indigo-900/20' : 'text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    All India (Tier-2/Tier-3)
+                    All Cities
                   </button>
                   {filteredCities.map((c) => (
                     <button
-                      key={c.id}
-                      onClick={() => { setSelectedCity(c.id); setSearchCity(''); setCityDropdownOpen(false); }}
-                      className={`w-full text-left px-5 py-2.5 text-sm transition-colors hover:bg-slate-50 hover:text-indigo-600 flex justify-between items-center dark:hover:bg-slate-700 ${
-                        selectedCity === c.id ? 'text-indigo-600 font-bold bg-indigo-50/50 dark:bg-indigo-900/20' : 'text-slate-700 dark:text-slate-300'
+                      key={c}
+                      onClick={() => { setSelectedCity(c); setSearchCity(''); setCityDropdownOpen(false); }}
+                      className={`w-full text-left px-5 py-2.5 text-sm transition-colors hover:bg-slate-50 hover:text-indigo-600 dark:hover:bg-slate-700 ${
+                        selectedCity === c ? 'text-indigo-600 font-bold bg-indigo-50/50 dark:bg-indigo-900/20' : 'text-slate-700 dark:text-slate-300'
                       }`}
                     >
-                      <span>{c.name}, {c.state}</span>
-                      <span className="badge badge-slate">{c.tier}</span>
+                      {c}
                     </button>
                   ))}
                 </div>
@@ -147,11 +230,23 @@ export default function HiringTrends() {
           </div>
         </div>
 
-        {/* Industry Sector filter removed — new_jobs_data has no
-            industry/sector column to filter on. If you want this back,
-            it would need approximating from tagsAndSkills keyword
-            matching, which needs real keyword mapping work first (the
-            same lesson learned with the old jobs.industry column). */}
+        <SimpleDropdown
+          label="Work Mode"
+          icon={<Briefcase className="w-4 h-4 text-indigo-600" />}
+          value={selectedWorkMode}
+          options={filterOptions.work_modes}
+          allLabel="All Work Modes"
+          onChange={setSelectedWorkMode}
+        />
+
+        <SimpleDropdown
+          label="Company Size"
+          icon={<Building2 className="w-4 h-4 text-indigo-600" />}
+          value={selectedCompanySize}
+          options={filterOptions.company_sizes}
+          allLabel="All Company Sizes"
+          onChange={setSelectedCompanySize}
+        />
 
         <div className="pt-4 border-t border-slate-100 text-xs text-slate-400 dark:border-slate-800">
           <div className="flex items-center gap-2 mb-1">
@@ -192,7 +287,7 @@ export default function HiringTrends() {
             ) : (
               <div className="flex items-baseline gap-2 mt-2">
                 <h4 className={`text-2xl font-bold font-heading ${isPositive ? 'text-indigo-600' : 'text-orange-600'}`}>
-                  {isPositive ? '+' : ''}{momChange}%
+                  {isPositive ? '+' : ''}{periodChange}%
                 </h4>
               </div>
             )}
@@ -222,17 +317,11 @@ export default function HiringTrends() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-3">
             <div>
               <h3 className="text-base font-bold text-slate-900 font-heading dark:text-slate-100">
-                Market Volume & Salary Transparency
+                Top Skill Domains — Hiring Trend
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active listings vs listings with a disclosed salary</p>
-            </div>
-            <div className="text-xs font-semibold text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg bg-slate-50 flex items-center gap-4 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 bg-indigo-600 rounded" /> Listings
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 bg-emerald-600 rounded" /> Salary Disclosed
-              </span>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Listings per age bucket (e.g. "7-13d ago") for the top {domains.length || 5} skill domains under the current filters
+              </p>
             </div>
           </div>
 
@@ -242,19 +331,13 @@ export default function HiringTrends() {
                 <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
                 <span className="text-sm font-semibold">Streaming market signals...</span>
               </div>
+            ) : domains.length === 0 ? (
+              <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm font-semibold">
+                No skill domain data for this filter combination.
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorListings" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorSalaryDisclosed" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                <LineChart data={domainData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
                   <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dy={10} />
                   <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dx={-5}
@@ -266,9 +349,22 @@ export default function HiringTrends() {
                       color: '#0f172a', fontSize: '12px', fontWeight: 600, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                     }}
                   />
-                  <Area type="monotone" dataKey="Listings" stroke="#4f46e5" strokeWidth={2.5} fillOpacity={1} fill="url(#colorListings)" />
-                  <Area type="monotone" dataKey="SalaryDisclosed" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSalaryDisclosed)" />
-                </AreaChart>
+                  <Legend
+                    wrapperStyle={{ fontSize: '11px', fontWeight: 600 }}
+                    iconType="circle"
+                    iconSize={8}
+                  />
+                  {domains.map((domain, i) => (
+                    <Line
+                      key={domain}
+                      type="monotone"
+                      dataKey={domain}
+                      stroke={DOMAIN_COLORS[i % DOMAIN_COLORS.length]}
+                      strokeWidth={2.5}
+                      dot={false}
+                    />
+                  ))}
+                </LineChart>
               </ResponsiveContainer>
             )}
           </div>

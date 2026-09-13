@@ -1,11 +1,10 @@
 """
 job_data-backed API
 --------------------
-Real queries against `job_data` (+ `courses` for the gap map).
-See get_job_data_hiring_trends_fix.sql for the hiring-trends function.
-skill-trends / skill-gap-map are unchanged and rely on the existing
-get_job_data_max_date / get_skill_trends / get_skill_gap_map functions
-already in the database.
+See job_data_hiring_trends_v2.sql for the hiring-trends / domain-trends
+/ filter-options functions. skill-trends and skill-gap-map are
+unchanged and rely on the existing get_job_data_max_date /
+get_skill_trends / get_skill_gap_map functions already in the database.
 
     from routers.job_data_router import router as job_data_router
     app.include_router(job_data_router)
@@ -44,14 +43,31 @@ def _get_anchor_date(supabase: Client) -> date:
 
 
 # ------------------------------------------------------------------
-# Hiring Trends — UPDATED
+# Filter options — real distinct values for the dropdowns, instead of
+# a hardcoded city list
 # ------------------------------------------------------------------
-# job_data is a one-time scraped snapshot, not a live feed — bucketing
-# by absolute calendar date (the old approach) clusters almost every
-# row onto the scrape day, which is what produced the single-day spike
-# in the chart. days_since_posted is already a precomputed real
-# column, so bucketing on that directly avoids the date-anchor step
-# entirely and reflects the actual age distribution of postings.
+@router.get("/job-data/filter-options")
+def get_filter_options(supabase: Client = Depends(get_supabase)):
+    try:
+        result = supabase.rpc("get_job_data_filter_options", {}).execute()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"filter options query failed: {exc}")
+
+    rows = result.data or []
+    row = rows[0] if rows else {}
+    return {
+        "cities": row.get("cities") or [],
+        "work_modes": row.get("work_modes") or [],
+        "company_sizes": row.get("company_sizes") or [],
+    }
+
+
+# ------------------------------------------------------------------
+# Hiring Trends — overall totals (KPI cards) + per-domain breakdown
+# (chart lines). Bucketed by days_since_posted, not absolute calendar
+# date — job_data is a one-time scraped snapshot, not a live feed, so
+# calendar-date bucketing clusters everything onto the scrape day.
+# ------------------------------------------------------------------
 TIMEFRAME_CONFIG = {
     "7d":  {"max_days_ago": 6,   "bucket_size": 1},
     "30d": {"max_days_ago": 29,  "bucket_size": 1},
@@ -66,22 +82,32 @@ def _bucket_label(start: int, end: int) -> str:
     return f"{start}-{end}d ago"
 
 
+def _normalize_filter(value: Optional[str]) -> Optional[str]:
+    return value if value and value.lower() != "all" else None
+
+
 @router.get("/hiring-trends")
 def get_hiring_trends(
     timeframe: str = Query("30d", pattern="^(7d|30d|90d|1yr)$"),
-    city: Optional[str] = Query(None, description="Matched against primary_city. Omit/'all' for no filter."),
+    city: Optional[str] = Query(None, description="Exact primary_city value. Omit/'all' for no filter."),
+    work_mode: Optional[str] = Query(None, description="Exact work_mode value. Omit/'all' for no filter."),
+    company_size: Optional[str] = Query(None, description="Exact company_size_bucket value. Omit/'all' for no filter."),
     supabase: Client = Depends(get_supabase),
 ):
     if timeframe not in TIMEFRAME_CONFIG:
         raise HTTPException(status_code=400, detail=f"Invalid timeframe '{timeframe}'")
 
     cfg = TIMEFRAME_CONFIG[timeframe]
-    city_filter = city if city and city.lower() != "all" else None
+    city_filter = _normalize_filter(city)
+    work_mode_filter = _normalize_filter(work_mode)
+    company_size_filter = _normalize_filter(company_size)
 
     params = {
         "p_max_days_ago": cfg["max_days_ago"],
         "p_bucket_size": cfg["bucket_size"],
         "p_city": city_filter,
+        "p_work_mode": work_mode_filter,
+        "p_company_size": company_size_filter,
     }
 
     try:
@@ -94,11 +120,81 @@ def get_hiring_trends(
         {
             "name": _bucket_label(row["days_ago_start"], row["days_ago_end"]),
             "Listings": row["listings"],
-            "SalaryDisclosed": row["salary_disclosed"],
         }
         for row in rows
     ]
-    return {"timeframe": timeframe, "city": city_filter, "data": chart_data}
+    return {
+        "timeframe": timeframe,
+        "city": city_filter,
+        "work_mode": work_mode_filter,
+        "company_size": company_size_filter,
+        "data": chart_data,
+    }
+
+
+@router.get("/hiring-trends/by-domain")
+def get_hiring_trends_by_domain(
+    timeframe: str = Query("30d", pattern="^(7d|30d|90d|1yr)$"),
+    city: Optional[str] = Query(None),
+    work_mode: Optional[str] = Query(None),
+    company_size: Optional[str] = Query(None),
+    top_n: int = Query(5, ge=1, le=8, description="Number of top skill domains to chart as separate lines."),
+    supabase: Client = Depends(get_supabase),
+):
+    if timeframe not in TIMEFRAME_CONFIG:
+        raise HTTPException(status_code=400, detail=f"Invalid timeframe '{timeframe}'")
+
+    cfg = TIMEFRAME_CONFIG[timeframe]
+    city_filter = _normalize_filter(city)
+    work_mode_filter = _normalize_filter(work_mode)
+    company_size_filter = _normalize_filter(company_size)
+
+    params = {
+        "p_max_days_ago": cfg["max_days_ago"],
+        "p_bucket_size": cfg["bucket_size"],
+        "p_city": city_filter,
+        "p_work_mode": work_mode_filter,
+        "p_company_size": company_size_filter,
+        "p_top_n": top_n,
+    }
+
+    try:
+        result = supabase.rpc("get_job_data_domain_trends", params).execute()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"domain trends query failed: {exc}")
+
+    rows = result.data or []
+
+    # Pivot the long-format rows (bucket, skill_domain, listings) into
+    # wide-format points Recharts can plot directly: one object per
+    # bucket, one key per domain.
+    buckets: dict = {}
+    domains_seen: set = set()
+    for r in rows:
+        b = buckets.setdefault(
+            r["bucket_index"],
+            {"start": r["days_ago_start"], "end": r["days_ago_end"], "values": {}},
+        )
+        b["values"][r["skill_domain"]] = r["listings"]
+        domains_seen.add(r["skill_domain"])
+
+    domains = sorted(domains_seen)
+    chart_data = []
+    for bucket_index in sorted(buckets.keys(), reverse=True):
+        info = buckets[bucket_index]
+        point = {"name": _bucket_label(info["start"], info["end"])}
+        for d in domains:
+            point[d] = info["values"].get(d, 0)
+        chart_data.append(point)
+
+    return {
+        "timeframe": timeframe,
+        "city": city_filter,
+        "work_mode": work_mode_filter,
+        "company_size": company_size_filter,
+        "domains": domains,
+        "data": chart_data,
+    }
 
 
 # ------------------------------------------------------------------
