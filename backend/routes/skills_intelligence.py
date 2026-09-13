@@ -1,10 +1,8 @@
 """
 job_data-backed API
 --------------------
-See job_data_hiring_trends_v2.sql for the hiring-trends / domain-trends
-/ filter-options functions. skill-trends and skill-gap-map are
-unchanged and rely on the existing get_job_data_max_date /
-get_skill_trends / get_skill_gap_map functions already in the database.
+See job_data_hiring_trends_v2.sql and job_data_skills_intelligence_v2.sql
+for the underlying Postgres functions.
 
     from routers.job_data_router import router as job_data_router
     app.include_router(job_data_router)
@@ -28,7 +26,6 @@ def get_supabase() -> Client:
 
 
 def _get_anchor_date(supabase: Client) -> date:
-    """Still used by /skill-trends below — unchanged."""
     try:
         result = supabase.rpc("get_job_data_max_date", {}).execute()
     except Exception as exc:
@@ -42,9 +39,14 @@ def _get_anchor_date(supabase: Client) -> date:
     return date.fromisoformat(raw)
 
 
+def _normalize_filter(value: Optional[str]) -> Optional[str]:
+    return value if value and value.lower() != "all" else None
+
+
 # ------------------------------------------------------------------
-# Filter options — real distinct values for the dropdowns, instead of
-# a hardcoded city list
+# Filter options — real distinct values for the dropdowns. Now
+# includes skill_domains alongside city/work_mode/company_size, so
+# Skills Intelligence can reuse the same lookup Hiring Trends uses.
 # ------------------------------------------------------------------
 @router.get("/job-data/filter-options")
 def get_filter_options(supabase: Client = Depends(get_supabase)):
@@ -59,14 +61,12 @@ def get_filter_options(supabase: Client = Depends(get_supabase)):
         "cities": row.get("cities") or [],
         "work_modes": row.get("work_modes") or [],
         "company_sizes": row.get("company_sizes") or [],
+        "skill_domains": row.get("skill_domains") or [],
     }
 
 
 # ------------------------------------------------------------------
-# Hiring Trends — overall totals (KPI cards) + per-domain breakdown
-# (chart lines). Bucketed by days_since_posted, not absolute calendar
-# date — job_data is a one-time scraped snapshot, not a live feed, so
-# calendar-date bucketing clusters everything onto the scrape day.
+# Hiring Trends — UNCHANGED from the previous update
 # ------------------------------------------------------------------
 TIMEFRAME_CONFIG = {
     "7d":  {"max_days_ago": 6,   "bucket_size": 1},
@@ -80,10 +80,6 @@ def _bucket_label(start: int, end: int) -> str:
     if start == end:
         return "Today" if start == 0 else f"{start}d ago"
     return f"{start}-{end}d ago"
-
-
-def _normalize_filter(value: Optional[str]) -> Optional[str]:
-    return value if value and value.lower() != "all" else None
 
 
 @router.get("/hiring-trends")
@@ -165,9 +161,6 @@ def get_hiring_trends_by_domain(
 
     rows = result.data or []
 
-    # Pivot the long-format rows (bucket, skill_domain, listings) into
-    # wide-format points Recharts can plot directly: one object per
-    # bucket, one key per domain.
     buckets: dict = {}
     domains_seen: set = set()
     for r in rows:
@@ -198,14 +191,20 @@ def get_hiring_trends_by_domain(
 
 
 # ------------------------------------------------------------------
-# Skill Trends (rising / declining) — UNCHANGED
+# Skill Trends (rising / declining) — UPDATED
+# Now accepts skill_domain (the SQL function already supported it —
+# it just wasn't exposed here), and returns an avg-skills-per-posting
+# stat computed from skills_count, which was previously unused.
 # ------------------------------------------------------------------
 @router.get("/skill-trends")
 def get_skill_trends(
     window_days: int = Query(7, ge=1, le=14, description="Size of each comparison window in days."),
     limit: int = Query(20, ge=1, le=50),
+    skill_domain: Optional[str] = Query(None, description="Exact skill_domain value. Omit/'all' for no filter."),
     supabase: Client = Depends(get_supabase),
 ):
+    domain_filter = _normalize_filter(skill_domain)
+
     anchor = _get_anchor_date(supabase)
     recent_end = anchor
     recent_start = anchor - timedelta(days=window_days - 1)
@@ -220,13 +219,13 @@ def get_skill_trends(
                 "p_recent_end": recent_end.isoformat(),
                 "p_prior_start": prior_start.isoformat(),
                 "p_prior_end": prior_end.isoformat(),
+                "p_skill_domain": domain_filter,
             },
         ).execute()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"skill trends query failed: {exc}")
 
     rows = result.data or []
-    # rows already ordered by pct_change desc nulls last (brand-new skills first)
     rising = rows[:limit]
     declining = sorted(
         [r for r in rows if r["pct_change"] is not None],
@@ -243,10 +242,34 @@ def get_skill_trends(
             "prior_count": r["prior_count"],
         }
 
+    # Avg skills required per posting in the recent window — uses
+    # skills_count, which wasn't used anywhere before.
+    avg_skills_count = None
+    posting_count = None
+    try:
+        summary_result = supabase.rpc(
+            "get_job_data_skills_summary",
+            {
+                "p_recent_start": recent_start.isoformat(),
+                "p_recent_end": recent_end.isoformat(),
+                "p_skill_domain": domain_filter,
+            },
+        ).execute()
+        summary_rows = summary_result.data or []
+        if summary_rows:
+            avg_skills_count = summary_rows[0].get("avg_skills_count")
+            posting_count = summary_rows[0].get("posting_count")
+    except Exception:
+        # Non-critical — the rising/declining lists still work without it.
+        pass
+
     return {
         "window_days": window_days,
+        "skill_domain": domain_filter,
         "recent_range": [recent_start.isoformat(), recent_end.isoformat()],
         "prior_range": [prior_start.isoformat(), prior_end.isoformat()],
+        "avg_skills_count": avg_skills_count,
+        "posting_count": posting_count,
         "rising": [_format(r, i + 1) for i, r in enumerate(rising)],
         "declining": [_format(r, i + 1) for i, r in enumerate(declining)],
     }

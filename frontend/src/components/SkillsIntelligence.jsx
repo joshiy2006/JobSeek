@@ -1,16 +1,77 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, GraduationCap, Building } from 'lucide-react';
+import { TrendingUp, TrendingDown, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, GraduationCap, Layers, ChevronDown } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
+function DomainDropdown({ value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const activeLabel = value === 'all' ? 'All Domains' : value;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="input-base flex items-center justify-between gap-2 px-3 py-2 text-xs font-bold cursor-pointer"
+      >
+        <Layers className="w-3.5 h-3.5 text-indigo-600" />
+        <span>{activeLabel}</span>
+        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-2 right-0 w-56 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto dark:bg-slate-800 dark:border-slate-700">
+          <div className="py-1">
+            <button
+              onClick={() => { onChange('all'); setOpen(false); }}
+              className={`w-full text-left px-4 py-2 text-xs transition-colors hover:bg-slate-50 hover:text-indigo-600 dark:hover:bg-slate-700 ${
+                value === 'all' ? 'text-indigo-600 font-bold bg-indigo-50/50 dark:bg-indigo-900/20' : 'text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              All Domains
+            </button>
+            {options.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => { onChange(opt); setOpen(false); }}
+                className={`w-full text-left px-4 py-2 text-xs transition-colors hover:bg-slate-50 hover:text-indigo-600 dark:hover:bg-slate-700 ${
+                  value === opt ? 'text-indigo-600 font-bold bg-indigo-50/50 dark:bg-indigo-900/20' : 'text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SkillsIntelligence() {
   const [activeListTab, setActiveListTab] = useState('rising');
+  const [selectedDomain, setSelectedDomain] = useState('all');
+  const [skillDomains, setSkillDomains] = useState([]);
   const [rising, setRising] = useState([]);
   const [declining, setDeclining] = useState([]);
   const [gapMap, setGapMap] = useState([]);
   const [rangeInfo, setRangeInfo] = useState(null);
+  const [avgSkillsCount, setAvgSkillsCount] = useState(null);
+  const [postingCount, setPostingCount] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Domain list for the filter dropdown — real distinct skill_domain
+  // values, same lookup Hiring Trends uses for its filters.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${API_BASE_URL}/api/job-data/filter-options`, { signal: controller.signal })
+      .then((res) => res.json())
+      .then((json) => setSkillDomains(json.skill_domains || []))
+      .catch((err) => {
+        if (err.name !== 'AbortError') console.error('Could not load skill domains', err);
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -19,7 +80,10 @@ export default function SkillsIntelligence() {
       setIsLoading(true);
       setError(null);
       try {
-        const trendsRes = await fetch(`${API_BASE_URL}/api/skill-trends?window_days=7&limit=20`, {
+        const params = new URLSearchParams({ window_days: '7', limit: '20' });
+        if (selectedDomain !== 'all') params.set('skill_domain', selectedDomain);
+
+        const trendsRes = await fetch(`${API_BASE_URL}/api/skill-trends?${params.toString()}`, {
           signal: controller.signal,
         });
         if (!trendsRes.ok) throw new Error(`skill-trends failed: ${trendsRes.status}`);
@@ -27,14 +91,16 @@ export default function SkillsIntelligence() {
         setRising(trendsJson.rising || []);
         setDeclining(trendsJson.declining || []);
         setRangeInfo({ recent: trendsJson.recent_range, prior: trendsJson.prior_range });
+        setAvgSkillsCount(trendsJson.avg_skills_count);
+        setPostingCount(trendsJson.posting_count);
 
         // Gap map is checked against the top rising skills — the ones
         // that matter most for "is training keeping up with demand?"
         const topSkills = (trendsJson.rising || []).slice(0, 10).map((s) => s.name);
         if (topSkills.length) {
-          const params = new URLSearchParams();
-          topSkills.forEach((s) => params.append('skills', s));
-          const gapRes = await fetch(`${API_BASE_URL}/api/skill-gap-map?${params.toString()}`, {
+          const gapParams = new URLSearchParams();
+          topSkills.forEach((s) => gapParams.append('skills', s));
+          const gapRes = await fetch(`${API_BASE_URL}/api/skill-gap-map?${gapParams.toString()}`, {
             signal: controller.signal,
           });
           if (!gapRes.ok) throw new Error(`skill-gap-map failed: ${gapRes.status}`);
@@ -54,7 +120,7 @@ export default function SkillsIntelligence() {
 
     load();
     return () => controller.abort();
-  }, []);
+  }, [selectedDomain]);
 
   const activeSkills = activeListTab === 'rising' ? rising : declining;
 
@@ -70,14 +136,27 @@ export default function SkillsIntelligence() {
       {/* Rising / Declining Skills */}
       <div className="card p-5 flex flex-col h-[680px] dark:bg-slate-900">
         <div className="border-b border-slate-100 pb-4 mb-4 dark:border-slate-800">
-          <h3 className="text-base font-bold text-slate-900 font-heading dark:text-slate-100">
-            Job Category Skill Trends
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {rangeInfo
-              ? `Change in listing frequency: ${rangeInfo.recent[0]} → ${rangeInfo.recent[1]} vs the 7 days before`
-              : 'Change in listing frequency, last 7 days vs the 7 days before'}
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 font-heading dark:text-slate-100">
+                Job Category Skill Trends
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {rangeInfo
+                  ? `Change in listing frequency: ${rangeInfo.recent[0]} → ${rangeInfo.recent[1]} vs the 7 days before`
+                  : 'Change in listing frequency, last 7 days vs the 7 days before'}
+              </p>
+            </div>
+            <DomainDropdown value={selectedDomain} options={skillDomains} onChange={setSelectedDomain} />
+          </div>
+
+          {avgSkillsCount != null && (
+            <p className="text-[11px] text-slate-400 font-semibold mt-2">
+              Avg {avgSkillsCount} skills listed per posting
+              {postingCount != null ? ` · ${postingCount.toLocaleString('en-IN')} postings analyzed` : ''}
+              {selectedDomain !== 'all' ? ` in ${selectedDomain}` : ''}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl mb-4 dark:bg-slate-800">
@@ -109,6 +188,10 @@ export default function SkillsIntelligence() {
           {isLoading ? (
             <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm font-semibold">
               Loading skill trends...
+            </div>
+          ) : activeSkills.length === 0 ? (
+            <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm font-semibold text-center px-6">
+              No {activeListTab} skills for this domain in the current window.
             </div>
           ) : (
             activeSkills.map((skill) => (
