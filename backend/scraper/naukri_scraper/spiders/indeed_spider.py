@@ -23,20 +23,23 @@ from naukri_scraper.utils import (
 )
 
 
-class NaukriSpider(scrapy.Spider):
+class IndeedSpider(scrapy.Spider):
     """
-    Naukri list-page + detail-page crawl.
+    Indeed India (in.indeed.com) list-page + detail-page crawl.
 
-    List pages give us title/company/location/experience/salary/posted-text
-    fast and cheap. But several of the fields the deck asks for only live on
-    the job *detail* page — key skills as discrete pill tags, the explicit
-    "Role Category" / "Industry Type" / "Employment Type" facets, and the
-    full JD text needed for the AI-mention scan — so every card we keep is
-    followed through to its detail page before being yielded.
+    NOTE on fragility: Indeed sits behind aggressive bot-detection
+    (Cloudflare-style challenges, class names that get re-hashed across
+    deploys). The selectors below are a best-effort, multi-fallback attempt
+    and *will* need re-checking against the live DOM periodically — same as
+    the naukri spider already has to. Unlike Naukri, Indeed does not expose
+    a role-category/industry facet in search results, so those two fields
+    fall back to the search query bucket rather than a scraped facet; that
+    limitation is intentional and documented rather than papered over with a
+    fragile keyword guess.
     """
 
-    name = "naukri"
-    allowed_domains = ["naukri.com"]
+    name = "indeed"
+    allowed_domains = ["indeed.com"]
 
     QUERIES = [
         "python developer",
@@ -53,26 +56,9 @@ class NaukriSpider(scrapy.Spider):
         "chennai",
     ]
 
-    JS_SCROLL = """
-        async () => {
-            await new Promise(resolve => {
-                let total = 0;
-                const step = 600;
-                const timer = setInterval(() => {
-                    window.scrollBy(0, step);
-                    total += step;
-                    if (total >= document.body.scrollHeight) {
-                        clearInterval(timer);
-                        resolve();
-                    }
-                }, 300);
-            });
-        }
-    """
+    RESULTS_PER_PAGE = 10
 
     custom_settings = {
-        # Belt-and-suspenders per-spider cap on top of the global
-        # CLOSESPIDER_ITEMCOUNT in settings.py.
         "CLOSESPIDER_ITEMCOUNT": 1500,
     }
 
@@ -84,24 +70,9 @@ class NaukriSpider(scrapy.Spider):
         self.scrape_run_id = new_scrape_run_id()
         self.scrape_dt = datetime.now(timezone.utc)
 
-    def get_location(self, card):
-        location = card.css('[data-automation*="location"] ::text').getall()
-        location = ", ".join(t.strip() for t in location if t.strip())
-        if location: return location
-
-        location = card.css('[class*="loc"] ::text').getall()
-        location = ", ".join(t.strip() for t in location if t.strip())
-        if location: return location
-
-        location = card.css('[aria-label*="location"] ::text').getall()
-        location = ", ".join(t.strip() for t in location if t.strip())
-        return location if location else ""
-
     def _build_url(self, query: str, location: str, page: int) -> str:
-        slug = query.lower().replace(" ", "-")
-        loc_slug = location.lower().replace(" ", "-")
-        base = f"https://www.naukri.com/{slug}-jobs-in-{loc_slug}"
-        return base if page == 1 else f"{base}-{page}"
+        start = (page - 1) * self.RESULTS_PER_PAGE
+        return f"https://in.indeed.com/jobs?q={query.replace(' ', '+')}&l={location.replace(' ', '+')}&start={start}"
 
     async def start_requests(self):
         self.logger.info(f"Scrape run {self.scrape_run_id} starting (max_jobs={self.max_jobs}).")
@@ -124,8 +95,6 @@ class NaukriSpider(scrapy.Spider):
                             "playwright_context_kwargs": playwright_context_kwargs(proxy_list),
                             "playwright_page_methods": [
                                 PageMethod("wait_for_load_state", "domcontentloaded"),
-                                PageMethod("wait_for_timeout", 3000),
-                                PageMethod("evaluate", self.JS_SCROLL),
                                 PageMethod("wait_for_timeout", 3000),
                             ],
                             "query": query,
@@ -170,7 +139,7 @@ class NaukriSpider(scrapy.Spider):
             self.logger.error(f"Fallback triggered: {e}")
             selector = response
 
-        cards = selector.css("div.srp-jobtuple-wrapper")
+        cards = selector.css("div.job_seen_beacon, td.resultContent, div.jobsearch-SerpJobCard")
         if not cards:
             self.logger.warning(f"No cards found on {response.url}")
             return
@@ -182,22 +151,37 @@ class NaukriSpider(scrapy.Spider):
                 self.logger.info(f"max_jobs={self.max_jobs} reached, stopping detail scheduling.")
                 return
 
-            title = card.css("a.title::text").get("").strip()
+            title = card.css("h2.jobTitle span::text, h2.jobTitle a::text, a.jcs-JobTitle span::text").get("").strip()
             if not title:
                 continue
 
-            job_url = card.css("a.title::attr(href)").get("").strip()
-            if not job_url:
+            job_id = (
+                card.css("a::attr(data-jk)").get("")
+                or card.attrib.get("data-jk", "")
+                or card.css("[data-jk]::attr(data-jk)").get("")
+            ).strip()
+            if not job_id:
                 continue
 
-            company = card.css("a.comp-name::text").get("").strip()
-            experience_raw = " ".join(t.strip() for t in card.css("span.expwdth ::text, span.exp-wrap ::text").getall() if t.strip())
-            salary_raw = " ".join(t.strip() for t in card.css("i.ni-icon-salary + span::text").getall() if t.strip())
-            location_raw = self.get_location(card)
-            posted_text_raw = " ".join(t.strip() for t in card.css(".job-post-day ::text").getall() if t.strip())
-
-            match = re.search(r"-(\d{6,12})(?:\?|$)", job_url)
-            job_id = match.group(1) if match else job_url.split("/")[-1][:20]
+            job_url = f"https://in.indeed.com/viewjob?jk={job_id}"
+            company = card.css(
+                "span.companyName::text, [data-testid='company-name']::text"
+            ).get("").strip()
+            location_raw = " ".join(
+                t.strip() for t in card.css(
+                    "div.companyLocation ::text, [data-testid='text-location'] ::text"
+                ).getall() if t.strip()
+            )
+            salary_raw = " ".join(
+                t.strip() for t in card.css(
+                    "div.salary-snippet-container ::text, "
+                    "div.metadata.salary-snippet-container ::text, "
+                    "[data-testid='attribute_snippet_testid'] ::text"
+                ).getall() if t.strip()
+            )
+            posted_text_raw = " ".join(
+                t.strip() for t in card.css("span.date ::text, [data-testid='myJobsStateDate'] ::text").getall() if t.strip()
+            )
 
             self.jobs_scheduled += 1
 
@@ -214,9 +198,8 @@ class NaukriSpider(scrapy.Spider):
                     "job_id": job_id,
                     "title": title,
                     "company": company,
-                    "experience_raw": experience_raw,
-                    "salary_raw": salary_raw,
                     "location_raw": location_raw,
+                    "salary_raw": salary_raw,
                     "posted_text_raw": posted_text_raw,
                     "job_url": job_url,
                     "query": response.meta.get("query"),
@@ -241,54 +224,56 @@ class NaukriSpider(scrapy.Spider):
             self.logger.error(f"Detail-page parse fallback triggered: {e}")
             sel = response
 
-        # Key skills: discrete pill/tag elements, scraped as individual DOM
-        # nodes — never a blob split on commas later.
+        description_html = sel.css("#jobDescriptionText").get("") or ""
+        job_description_clean = clean_html(description_html)
+
+        # Indeed occasionally renders a discrete "skills" chip list on the
+        # detail page ("Profile insights" panel). Scrape those DOM nodes
+        # directly when present; otherwise leave the list empty rather than
+        # ever falling back to splitting the JD blob on commas.
         skills_list = [
             s.strip() for s in sel.css(
-                ".key-skill a ::text, .key-skill span ::text, "
-                "[class*='key-skill'] a ::text, [class*='chip'] ::text"
+                "[data-testid='skills'] li ::text, "
+                "[data-testid*='skill'] ::text, "
+                ".js-match-insights-provider-tvvxwd li ::text"
             ).getall() if s.strip()
         ]
 
-        def facet(*labels):
-            for label in labels:
-                val = sel.xpath(
-                    f"//label[contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ',"
-                    f"'abcdefghijklmnopqrstuvwxyz'),'{label.lower()}')]"
-                    f"/following-sibling::span[1]/text()"
-                ).get()
-                if val and val.strip():
-                    return val.strip()
-            return None
-
-        role_category = facet("role category")
-        functional_area = facet("functional area") or role_category
-        industry = facet("industry type", "industry")
-        employment_type_facet = facet("employment type")
-        work_mode_facet = facet("work mode")
-
-        description_html = sel.css(".job-desc, .JDC__dang-inner-html, [class*='job-description']").get("") or ""
-        job_description_clean = clean_html(description_html)
-
-        location_raw = facet("location") or response.meta.get("location_raw") or ""
+        location_raw = response.meta.get("location_raw") or ""
         location_normalized = normalize_city(location_raw)
 
-        salary_raw = facet("salary") or response.meta.get("salary_raw") or ""
-        salary_parsed = parse_salary(salary_raw)
+        salary_text = " ".join(
+            t.strip() for t in sel.css(
+                "#salaryInfoAndJobType ::text, .jobsearch-JobMetadataHeader-item ::text"
+            ).getall() if t.strip()
+        ) or response.meta.get("salary_raw", "")
+        salary_parsed = parse_salary(salary_text)
 
-        experience_raw = facet("experience") or response.meta.get("experience_raw") or ""
+        job_type_text = " ".join(
+            t.strip() for t in sel.css(
+                "#salaryInfoAndJobType ::text, .jobsearch-JobMetadataHeader-item ::text"
+            ).getall() if t.strip()
+        )
 
-        work_mode = work_mode_facet or infer_work_mode(job_description_clean, response.meta.get("title", ""))
-        employment_type = employment_type_facet or infer_employment_type(job_description_clean)
+        work_mode = infer_work_mode(job_type_text, job_description_clean, location_raw)
+        employment_type = infer_employment_type(job_type_text, job_description_clean)
 
-        company_rating = sel.css("[class*='rating'] ::text").re_first(r"[\d.]+")
-        review_count = sel.css("[class*='review'] ::text").re_first(r"[\d,]+")
-        company_size = facet("company size", "employee count")
+        company_rating = sel.css(
+            "[data-testid='companyInfo-rating'] ::text, .icl-Ratings-starsCountWrapper ::text"
+        ).re_first(r"[\d.]+")
+        review_count = sel.css(
+            "[data-testid='companyInfo-reviewCount'] ::text"
+        ).re_first(r"[\d,]+")
 
-        posted_text_raw = response.meta.get("posted_text_raw") or facet("posted") or ""
+        posted_text_raw = response.meta.get("posted_text_raw") or ""
+
+        # Indeed's search UI has no role-category/industry facet the way
+        # Naukri does — the search query is the closest honest proxy we have,
+        # so we use it rather than guessing from keywords in the title.
+        role_category = response.meta.get("query")
 
         item = {
-            "source": "naukri",
+            "source": "indeed",
             "job_id": response.meta["job_id"],
             "scrape_run_id": self.scrape_run_id,
             "scrape_timestamp": utc_now_iso(),
@@ -296,21 +281,21 @@ class NaukriSpider(scrapy.Spider):
             "title": response.meta.get("title"),
             "company": response.meta.get("company"),
             "role_category": role_category,
-            "functional_area": functional_area,
-            "industry": industry,
+            "functional_area": role_category,
+            "industry": None,  # not exposed by Indeed's search/detail markup
 
             "location_raw": location_raw,
             "location_city_normalized": location_normalized,
             "location_tier": classify_tier(location_normalized),
 
-            "experience_raw": experience_raw,
-            "experience_min_years": self._exp_bound(experience_raw, 0),
-            "experience_max_years": self._exp_bound(experience_raw, 1),
+            "experience_raw": None,
+            "experience_min_years": None,
+            "experience_max_years": None,
 
             "skills_list": skills_list,
             "skills_canonical": canonicalize_skills(skills_list),
 
-            "salary_raw": salary_raw,
+            "salary_raw": salary_text,
             **salary_parsed,
 
             "job_description_clean": job_description_clean,
@@ -322,9 +307,9 @@ class NaukriSpider(scrapy.Spider):
 
             "posted_text_raw": posted_text_raw,
             "posted_date_computed": parse_posted_date(posted_text_raw, self.scrape_dt),
-            "listing_status": "active",  # Naukri redirects/404s expired listings before we get here
+            "listing_status": "active",
 
-            "company_size": company_size,
+            "company_size": None,  # not exposed by Indeed's search/detail markup
             "company_rating": float(company_rating) if company_rating else None,
             "review_count": int(review_count.replace(",", "")) if review_count else None,
 
@@ -335,17 +320,3 @@ class NaukriSpider(scrapy.Spider):
             "search_location": response.meta.get("location"),
         }
         yield item
-
-    @staticmethod
-    def _exp_bound(experience_raw: str, index: int):
-        if not experience_raw:
-            return None
-        nums = re.findall(r"\d+", experience_raw)
-        if not nums:
-            return None
-        if len(nums) == 1:
-            return int(nums[0])
-        try:
-            return int(nums[index])
-        except IndexError:
-            return int(nums[0])

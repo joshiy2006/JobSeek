@@ -107,7 +107,27 @@ DOWNLOAD_TIMEOUT = 60
 
 DOWNLOADER_MIDDLEWARES = {
     ##"scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler": 543,
+    # Disable Scrapy's own static UserAgentMiddleware in favour of rotation.
+    "scrapy.downloadermiddlewares.useragent.UserAgentMiddleware": None,
+    "naukri_scraper.middlewares.RotatingUserAgentMiddleware": 400,
+    "naukri_scraper.middlewares.RotatingProxyMiddleware": 410,
 }
+
+# Comma-separated list of proxy URLs, e.g.
+#   "http://user:pass@1.2.3.4:8000,socks5://5.6.7.8:1080"
+# Consumed by RotatingProxyMiddleware and by each spider's
+# utils.playwright_context_kwargs(). Falls back to a small starter list of
+# free public proxies (see utils.DEFAULT_PROXY_LIST) when unset/empty --
+# those churn fast, so set your own PROXY_LIST (e.g. a paid rotating-proxy
+# endpoint) for anything beyond a quick trial run.
+from naukri_scraper.utils import DEFAULT_PROXY_LIST
+PROXY_LIST = os.getenv("PROXY_LIST") or ",".join(DEFAULT_PROXY_LIST)
+
+# Hard cap on jobs scraped per run, across all spiders. Each spider also
+# accepts its own "-a max_jobs=N" for a per-spider cap; whichever is smaller
+# wins. This exists so a misconfigured run (or a site letting far more pages
+# through than expected) can't turn into an hours-long, IP-burning crawl.
+CLOSESPIDER_ITEMCOUNT = int(os.getenv("CLOSESPIDER_ITEMCOUNT", "1500"))
 
 DOWNLOAD_HANDLERS = {
     "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
@@ -133,19 +153,19 @@ ITEM_PIPELINES = {
     "naukri_scraper.pipelines.SupabasePipeline": 300,
 }
 
-# Supabase credentials — set via env or override here
-import os
+# Supabase credentials — set via env or override here.
+# NOTE: point these at the NEW Supabase project (see sql/create_job_listings_table.sql) —
+# the job_listings schema is not compatible with the old scraped_jobs table.
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_TABLE = os.getenv("SUPABASE_TABLE", "job_listings")
 
+# No static User-Agent here — RotatingUserAgentMiddleware (plain requests) and
+# each spider's utils.playwright_context_kwargs() (playwright requests)
+# assign a fresh random one per request instead.
 DEFAULT_REQUEST_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-IN,en;q=0.9",
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
 }
 
 LOG_LEVEL = "DEBUG"
