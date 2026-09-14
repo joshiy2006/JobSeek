@@ -6,3 +6,4 @@ cssselect
 beautifulsoup4
 supabase
 python-dotenv
+python-dateutil

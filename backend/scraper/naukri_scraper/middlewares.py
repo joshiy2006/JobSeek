@@ -3,10 +3,13 @@
 # See documentation in:
 # https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
+import os
 from scrapy import signals
 
 # useful for handling different item types with a single interface
 from itemadapter import is_item, ItemAdapter
+
+from naukri_scraper.utils import random_user_agent, random_proxy, load_proxy_list
 
 
 class NaukriScraperSpiderMiddleware:
@@ -54,6 +57,55 @@ class NaukriScraperSpiderMiddleware:
 
     def spider_opened(self, spider):
         spider.logger.info("Spider opened: %s" % spider.name)
+
+
+class RotatingUserAgentMiddleware:
+    """
+    Assigns a fresh random desktop User-Agent to every request that isn't
+    already going through scrapy-playwright (playwright requests get their
+    UA set per-context in the spider itself, via utils.playwright_context_kwargs,
+    since Playwright ignores plain header overrides on a launched browser).
+    """
+
+    def process_request(self, request, spider):
+        if request.meta.get("playwright"):
+            return None
+        request.headers["User-Agent"] = random_user_agent()
+        return None
+
+
+class RotatingProxyMiddleware:
+    """
+    Rotates outbound IP for plain (non-playwright) requests using PROXY_LIST.
+    Playwright requests get their proxy set per-context in the spider itself
+    (see utils.playwright_context_kwargs) since Playwright's proxy is a
+    browser-context launch option, not a request header.
+
+    PROXY_LIST env var: comma-separated proxy URLs, e.g.
+        PROXY_LIST="http://user:pass@1.2.3.4:8000,http://user:pass@5.6.7.8:8000"
+    Left unset, requests simply go out on the runner's own IP.
+    """
+
+    def __init__(self, proxy_list):
+        self.proxy_list = proxy_list
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        proxy_list = load_proxy_list(crawler.settings.get("PROXY_LIST") or os.getenv("PROXY_LIST"))
+        return cls(proxy_list)
+
+    def process_request(self, request, spider):
+        if request.meta.get("playwright") or not self.proxy_list:
+            return None
+        proxy = random_proxy(self.proxy_list)
+        if proxy:
+            scheme = "https" if proxy["server"].startswith("https://") else "http"
+            server = proxy["server"].split("://", 1)[-1]
+            if proxy.get("username") and proxy.get("password"):
+                request.meta["proxy"] = f"{scheme}://{proxy['username']}:{proxy['password']}@{server}"
+            else:
+                request.meta["proxy"] = f"{scheme}://{server}"
+        return None
 
 
 class NaukriScraperDownloaderMiddleware:

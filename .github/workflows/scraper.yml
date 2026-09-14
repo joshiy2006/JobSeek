@@ -1,4 +1,4 @@
-name: Daily Naukri Scrape
+name: Daily Job Board Scrape
 
 on:
   schedule:
@@ -10,6 +10,13 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      # One spider failing (e.g. Indeed/Glassdoor tightening bot-detection)
+      # shouldn't block the other two from writing their rows.
+      fail-fast: false
+      matrix:
+        spider: [naukri, indeed, glassdoor]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -18,14 +25,21 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        working-directory: backend/scraper/naukri_scraper
+        working-directory: backend/scraper
         run: |
           pip install -r requirements.txt
           playwright install --with-deps chromium
 
-      - name: Run spider
-        working-directory: backend/scraper/naukri_scraper
+      - name: Run ${{ matrix.spider }} spider
+        working-directory: backend/scraper
         env:
+          # IMPORTANT: these must point at the NEW Supabase project — the
+          # job_listings schema (see sql/create_job_listings_table.sql) is
+          # different from, and incompatible with, the old scraped_jobs
+          # table, so this can't reuse the old project's credentials.
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: scrapy crawl naukri -a pages=1
+          # Optional: comma-separated "http://user:pass@host:port" proxy list.
+          # Left unset, the crawl just runs on the runner's own IP.
+          PROXY_LIST: ${{ secrets.PROXY_LIST }}
+        run: scrapy crawl ${{ matrix.spider }} -a pages=1 -a max_jobs=300
