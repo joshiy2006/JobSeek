@@ -107,7 +107,8 @@ DOWNLOAD_TIMEOUT = 60
 
 DOWNLOADER_MIDDLEWARES = {
     ##"scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler": 543,
-    # Disable Scrapy's own static UserAgentMiddleware in favour of rotation.
+    # Disable Scrapy's own static UserAgentMiddleware in favour of the one
+    # below, which applies the single stable UA from utils.INITIAL_USER_AGENT.
     "scrapy.downloadermiddlewares.useragent.UserAgentMiddleware": None,
     "naukri_scraper.middlewares.RotatingUserAgentMiddleware": 400,
     "naukri_scraper.middlewares.RotatingProxyMiddleware": 410,
@@ -116,12 +117,11 @@ DOWNLOADER_MIDDLEWARES = {
 # Comma-separated list of proxy URLs, e.g.
 #   "http://user:pass@1.2.3.4:8000,socks5://5.6.7.8:1080"
 # Consumed by RotatingProxyMiddleware and by each spider's
-# utils.playwright_context_kwargs(). Falls back to a small starter list of
-# free public proxies (see utils.DEFAULT_PROXY_LIST) when unset/empty --
-# those churn fast, so set your own PROXY_LIST (e.g. a paid rotating-proxy
-# endpoint) for anything beyond a quick trial run.
-from naukri_scraper.utils import DEFAULT_PROXY_LIST
-PROXY_LIST = os.getenv("PROXY_LIST") or ",".join(DEFAULT_PROXY_LIST)
+# utils.playwright_context_kwargs(). Off by default (no proxying) — a
+# bundled list of free public proxies was tried here and dropped after
+# Naukri started returning 403 Forbidden for requests coming through them.
+# Set this to a paid rotating-proxy endpoint if you need one.
+PROXY_LIST = os.getenv("PROXY_LIST", "")
 
 # Hard cap on jobs scraped per run, across all spiders. Each spider also
 # accepts its own "-a max_jobs=N" for a per-spider cap; whichever is smaller
