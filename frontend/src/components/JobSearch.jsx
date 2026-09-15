@@ -3,8 +3,8 @@ import { Search, MapPin, Briefcase, DollarSign, X, CircleAlert as AlertCircle, S
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-export default function JobSearch() {
-  const [jobTitle, setJobTitle] = useState('');
+export default function JobSearch({ initialQuery = '' }) {
+  const [jobTitle, setJobTitle] = useState(initialQuery);
   const [location, setLocation] = useState('');
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -17,8 +17,12 @@ export default function JobSearch() {
   const [fetchError, setFetchError] = useState(null);
   const resultsTopRef = useRef(null);
 
+  // Runs once on mount. If the header search bar handed us a query
+  // (jumping in from elsewhere in the dashboard), search with it right
+  // away instead of loading the generic "most recent listings" default.
   useEffect(() => {
-    fetchJobs('', '', 1);
+    fetchJobs(initialQuery, '', 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchJobs = async (title, loc, page = 1) => {
@@ -95,14 +99,18 @@ export default function JobSearch() {
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full">
       {/* Title */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2 dark:text-slate-100">
-          Find Jobs
-          <Sparkles className="w-5 h-5 text-indigo-600" />
-        </h2>
-        <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">
-          Explore career opportunities across Indian growth hubs
-        </p>
+      <div className="flex items-center gap-3">
+        <div className="page-header-icon">
+          <Sparkles className="w-[18px] h-[18px]" />
+        </div>
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-heading dark:text-slate-100">
+            Find Jobs
+          </h2>
+          <p className="text-sm text-slate-500 mt-0.5 dark:text-slate-400">
+            Explore career opportunities across Indian growth hubs
+          </p>
+        </div>
       </div>
 
       {/* Search */}

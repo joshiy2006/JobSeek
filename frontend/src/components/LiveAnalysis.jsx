@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShieldAlert, TrendingDown, TrendingUp, Award, Send } from 'lucide-react';
+import { ShieldAlert, TrendingDown, TrendingUp, Award, Send, Briefcase } from 'lucide-react';
+import StatCard from './StatCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -99,28 +100,19 @@ export default function LiveAnalysis({ analysisResult }) {
           Real Demand Snapshot — {analysisResult.matched_role_category}
         </h3>
         <div className="grid grid-cols-2 gap-3">
-          <div className="card-flat p-3.5 flex items-center justify-between dark:bg-slate-800">
-            <div>
-              <span className="section-label block">Demand Shift (30d)</span>
-              <span className="font-bold text-slate-700 text-sm dark:text-slate-300">{city || 'All India'}</span>
-            </div>
-            {momChange < 0 ? (
-              <span className="text-orange-500 font-bold font-mono text-sm flex items-center gap-1">
-                <TrendingDown className="w-4 h-4" />{momChange}%
-              </span>
-            ) : (
-              <span className="text-indigo-600 font-bold font-mono text-sm flex items-center gap-1">
-                <TrendingUp className="w-4 h-4" />+{momChange}%
-              </span>
-            )}
-          </div>
-          <div className="card-flat p-3.5 flex items-center justify-between dark:bg-slate-800">
-            <div>
-              <span className="section-label block">Active Listings</span>
-              <span className="font-bold text-slate-700 text-sm dark:text-slate-300">Last 30 days</span>
-            </div>
-            <span className="text-indigo-600 font-bold font-mono text-sm">{activeListings} jobs</span>
-          </div>
+          <StatCard
+            icon={momChange < 0 ? TrendingDown : TrendingUp}
+            color={momChange < 0 ? 'orange' : 'emerald'}
+            label={`Demand Shift (30d) · ${city || 'All India'}`}
+            value={`${momChange >= 0 ? '+' : ''}${momChange}%`}
+          />
+          <StatCard
+            icon={Briefcase}
+            color="indigo"
+            label="Active Listings · Last 30 days"
+            value={activeListings}
+            suffix="Jobs"
+          />
         </div>
         {analysisResult.role_match_is_low_confidence && (
           <p className="text-[11px] text-orange-500 font-semibold mt-3">

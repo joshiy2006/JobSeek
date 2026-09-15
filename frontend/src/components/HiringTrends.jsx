@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
-import { Search, Calendar, MapPin, Briefcase, Building2, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react';
+import { Search, Calendar, MapPin, Briefcase, Building2, TrendingUp, TrendingDown, ChevronDown, Globe } from 'lucide-react';
+import StatCard from './StatCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -149,6 +150,21 @@ export default function HiringTrends() {
   const isPositive = rawChange >= 0;
 
   return (
+    <div className="flex flex-col gap-5 w-full">
+      <div className="flex items-center gap-3">
+        <div className="page-header-icon">
+          <Globe className="w-[18px] h-[18px]" />
+        </div>
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-heading dark:text-slate-100">
+            Hiring Trends
+          </h2>
+          <p className="text-sm text-slate-500 mt-0.5 dark:text-slate-400">
+            Live listing volume across Tier-2/3 cities and skill domains
+          </p>
+        </div>
+      </div>
+
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full">
 
       {/* Filters */}
@@ -268,48 +284,30 @@ export default function HiringTrends() {
 
         {/* KPI cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="card p-5 dark:bg-slate-900">
-            <p className="section-label">Total Active Listings</p>
-            {isApiLoading ? (
-              <div className="skeleton h-8 w-24 mt-2" />
-            ) : (
-              <h4 className="text-2xl font-bold text-slate-900 mt-2 font-heading dark:text-slate-100">
-                {currentVolume.toLocaleString('en-IN')}
-                <span className="text-xs text-slate-400 font-bold ml-1.5 uppercase">Jobs</span>
-              </h4>
-            )}
-          </div>
+          <StatCard
+            icon={Briefcase}
+            color="indigo"
+            label="Total Active Listings"
+            value={currentVolume.toLocaleString('en-IN')}
+            suffix="Jobs"
+            loading={isApiLoading}
+          />
 
-          <div className="card p-5 dark:bg-slate-900">
-            <p className="section-label">Change</p>
-            {isApiLoading ? (
-              <div className="skeleton h-8 w-24 mt-2" />
-            ) : (
-              <div className="flex items-baseline gap-2 mt-2">
-                <h4 className={`text-2xl font-bold font-heading ${isPositive ? 'text-indigo-600' : 'text-orange-600'}`}>
-                  {isPositive ? '+' : ''}{periodChange}%
-                </h4>
-              </div>
-            )}
-            <p className="text-xs mt-2 flex items-center gap-1.5 font-semibold">
-              {isPositive ? <TrendingUp className="w-3.5 h-3.5 text-indigo-600" /> : <TrendingDown className="w-3.5 h-3.5 text-orange-500" />}
-              <span className={isPositive ? 'text-indigo-600' : 'text-orange-500'}>
-                {isPositive ? 'Demand Growth' : 'Market Decline'}
-              </span>
-            </p>
-          </div>
+          <StatCard
+            icon={isPositive ? TrendingUp : TrendingDown}
+            color={isPositive ? 'emerald' : 'orange'}
+            label={isPositive ? 'Demand Growth' : 'Market Decline'}
+            value={`${isPositive ? '+' : ''}${periodChange}%`}
+            loading={isApiLoading}
+          />
 
-          <div className="card p-5 dark:bg-slate-900">
-            <p className="section-label">Hiring Status</p>
-            {isApiLoading ? (
-              <div className="skeleton h-8 w-24 mt-2" />
-            ) : (
-              <h4 className="text-2xl font-bold text-slate-900 mt-2 font-heading flex items-center gap-2 dark:text-slate-100">
-                {isPositive ? 'Resilient' : 'Contraction'}
-                <span className={`w-3 h-3 rounded-full ${isPositive ? 'bg-emerald-500' : 'bg-orange-500'}`} />
-              </h4>
-            )}
-          </div>
+          <StatCard
+            icon={Globe}
+            color={isPositive ? 'emerald' : 'orange'}
+            label="Hiring Status"
+            value={isPositive ? 'Resilient' : 'Contraction'}
+            loading={isApiLoading}
+          />
         </div>
 
         {/* Chart */}
@@ -370,6 +368,7 @@ export default function HiringTrends() {
           </div>
         </div>
       </section>
+    </div>
     </div>
   );
 }

@@ -11,7 +11,7 @@ import ChatDrawer from './components/ChatDrawer';
 import JobSearch from './components/JobSearch';
 import {
   Cpu, Globe, Award, UserCheck, Settings, LogOut, Activity,
-  Lock, Database, Search, Bot, X, Menu,
+  Lock, Database, Search, Bot, X, Menu, Bell,
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -29,6 +29,11 @@ export default function App() {
   const [sidebarView, setSidebarView] = useState('job-search');
   const [chatOpen, setChatOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Header search box: a quick jump into Job Search from anywhere in the
+  // dashboard, rather than a purely decorative input.
+  const [headerSearchDraft, setHeaderSearchDraft] = useState('');
+  const [headerSearchQuery, setHeaderSearchQuery] = useState('');
 
   const [profileData, setProfileData] = useState({
     jobTitle: '',
@@ -84,6 +89,17 @@ export default function App() {
     // but reset view-only state here since that's this component's job.
     setAnalysisResult(null);
   };
+
+  const handleHeaderSearch = (e) => {
+    e.preventDefault();
+    if (!headerSearchDraft.trim()) return;
+    setHeaderSearchQuery(headerSearchDraft.trim());
+    setSidebarView('job-search');
+    setMobileSidebarOpen(false);
+  };
+
+  const userEmail = session?.user?.email || '';
+  const userInitial = userEmail ? userEmail[0].toUpperCase() : 'U';
 
   const handleProfileSubmit = async () => {
     setIsLoading(true);
@@ -161,7 +177,7 @@ export default function App() {
 
       {/* ── Header ── */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm border-b border-slate-200 px-4 sm:px-6 py-3 shrink-0 dark:bg-slate-900/90 dark:border-slate-800">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-3 sm:gap-4">
           {/* Mobile menu toggle */}
           <button
             onClick={() => setMobileSidebarOpen(v => !v)}
@@ -172,38 +188,62 @@ export default function App() {
           </button>
 
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-sm">
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-sm">
               <Cpu className="w-5 h-5 text-white" />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold tracking-tight text-slate-900 font-heading dark:text-slate-100">
                   JobSeek
                 </span>
-                <span className="hidden sm:inline text-[10px] font-bold tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-md uppercase dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400">
+                <span className="text-[10px] font-bold tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-md uppercase dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400">
                   V2.5
                 </span>
               </div>
-              <p className="hidden sm:block text-[11px] text-slate-400 font-medium dark:text-slate-500">
+              <p className="text-[11px] text-slate-400 font-medium dark:text-slate-500">
                 Workforce Intelligence System
               </p>
             </div>
           </div>
 
-          {/* Status + Logout */}
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800/40">
+          {/* Quick search */}
+          <form onSubmit={handleHeaderSearch} className="hidden md:flex flex-1 max-w-md">
+            <div className="relative w-full">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={headerSearchDraft}
+                onChange={(e) => setHeaderSearchDraft(e.target.value)}
+                placeholder="Search jobs, skills, cities..."
+                className="input-base w-full pl-10 pr-3 py-2.5 text-sm"
+              />
+            </div>
+          </form>
+
+          {/* Status + Notifications + Profile */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800/40">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">Live Session</span>
             </div>
+
             <button
-              onClick={handleLogout}
-              className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors text-slate-500 cursor-pointer dark:border-slate-700 dark:hover:bg-slate-800 dark:text-slate-400"
-              title="Logout"
+              className="relative p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-slate-500 cursor-pointer dark:border-slate-700 dark:hover:bg-slate-800 dark:text-slate-400"
+              title="Notifications"
+              aria-label="Notifications"
             >
-              <LogOut className="w-4 h-4" />
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-orange-500" />
             </button>
+
+            <div className="hidden sm:flex items-center gap-2.5 pl-2.5 border-l border-slate-200 dark:border-slate-700">
+              <div className="avatar-chip">{userInitial}</div>
+              <div className="hidden lg:block leading-tight">
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Account</p>
+                <p className="text-[11px] text-slate-400 truncate max-w-[140px]">{userEmail}</p>
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -235,7 +275,14 @@ export default function App() {
             </button>
           ))}
 
-          
+          <div className="flex-1 md:min-h-6" />
+
+          <div className="pt-3 mt-2 border-t border-slate-100 dark:border-slate-800">
+            <button onClick={handleLogout} className="nav-item text-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:text-orange-500 dark:hover:bg-orange-900/20">
+              <LogOut className="w-[18px] h-[18px] shrink-0" />
+              Logout
+            </button>
+          </div>
         </aside>
 
         {/* ── Mobile backdrop ── */}
@@ -249,7 +296,7 @@ export default function App() {
         {/* ── Main Content ── */}
         <main className="flex-1 p-5 sm:p-6 md:p-8 bg-slate-50 overflow-y-auto min-h-0 flex flex-col dark:bg-slate-950">
 
-          {sidebarView === 'job-search' && <JobSearch />}
+          {sidebarView === 'job-search' && <JobSearch initialQuery={headerSearchQuery} />}
           {sidebarView === 'hiring-trends' && <HiringTrends />}
           {sidebarView === 'skills-intelligence' && <SkillsIntelligence />}
 
