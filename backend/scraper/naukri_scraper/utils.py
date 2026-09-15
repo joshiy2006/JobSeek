@@ -32,39 +32,36 @@ def utc_now_iso() -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Rotating User-Agents
+# User-Agent
 # ──────────────────────────────────────────────────────────────────────────
+# Rotation was tried and reverted: rotating a fresh UA per request (on top of
+# free rotating proxies) made Naukri's bot-detection *more* suspicious, not
+# less, and it started returning 403s. Back to a single, stable, current
+# desktop Chrome UA — the same one the scraper originally shipped with.
 
-USER_AGENTS = [
-    # Chrome / Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    # Chrome / macOS
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    # Firefox / Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
-    # Edge / Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
-    # Safari / macOS
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
-    # Chrome / Linux
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-]
+INITIAL_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
 
 
 def random_user_agent() -> str:
-    return random.choice(USER_AGENTS)
+    """Name kept for compatibility with existing callers (spiders,
+    middlewares) — it now always returns the one stable UA rather than
+    rotating, per the Naukri 403s rotation was causing."""
+    return INITIAL_USER_AGENT
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Rotating proxies
+# Proxies (opt-in, off by default)
 # ──────────────────────────────────────────────────────────────────────────
 # PROXY_LIST env var: comma-separated list of proxy URLs, e.g.
 #   PROXY_LIST="http://user:pass@1.2.3.4:8000,http://user:pass@5.6.7.8:8000"
 # Leave unset to disable proxying (requests go out on the runner's own IP).
+# NOTE: there is deliberately no bundled default list here anymore — the
+# free public proxies previously used got Naukri to return 403 Forbidden.
+# Point this at a paid rotating-proxy endpoint if you need one; don't
+# reintroduce a free-proxy list.
 
 def _parse_proxy_url(proxy_url: str) -> dict:
     """[http(s)|socks4|socks5]://[user:pass@]host:port -> playwright proxy dict.
@@ -86,31 +83,6 @@ def _parse_proxy_url(proxy_url: str) -> dict:
     return proxy
 
 
-# Starter list of free/public proxies (India-geolocated, mixed http/socks4/socks5)
-# provided at setup time. Used ONLY as a fallback when the PROXY_LIST env var
-# is unset/empty. Free proxies like these churn fast — expect a meaningful
-# fraction to be dead within hours — so treat this as a bootstrap, not a
-# long-term solution; swap in a paid rotating-proxy provider's endpoint for
-# real production reliability.
-DEFAULT_PROXY_LIST = [
-    "http://219.65.73.80:80",
-    "http://219.65.73.81:80",
-    "socks5://144.24.111.128:1088",
-    "socks4://103.83.28.216:5678",
-    "http://151.185.58.17:80",
-    "socks4://150.129.170.17:5678",
-    "socks4://136.233.136.41:43314",
-    "http://103.135.189.146:82",
-    "socks4://43.242.227.10:9053",
-    "http://103.150.152.27:83",
-    "socks4://103.66.74.61:1080",
-    "socks4://103.66.72.163:1080",
-    "http://183.87.160.62:82",
-    "http://103.103.8.222:8080",
-    "http://103.177.235.207:83",
-]
-
-
 def load_proxy_list(env_value: str | None) -> list:
     if not env_value:
         return []
@@ -124,7 +96,8 @@ def random_proxy(proxy_list: list) -> dict | None:
 
 
 def playwright_context_kwargs(proxy_list: list, user_agent: str | None = None) -> dict:
-    """Build the per-request scrapy-playwright context kwargs: fresh UA + proxy each time."""
+    """Build the per-request scrapy-playwright context kwargs: the stable UA,
+    plus a proxy only when PROXY_LIST is actually configured (empty by default)."""
     kwargs = {"user_agent": user_agent or random_user_agent()}
     proxy = random_proxy(proxy_list)
     if proxy:

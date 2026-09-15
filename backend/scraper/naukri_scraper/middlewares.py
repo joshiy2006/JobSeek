@@ -61,10 +61,17 @@ class NaukriScraperSpiderMiddleware:
 
 class RotatingUserAgentMiddleware:
     """
-    Assigns a fresh random desktop User-Agent to every request that isn't
-    already going through scrapy-playwright (playwright requests get their
-    UA set per-context in the spider itself, via utils.playwright_context_kwargs,
-    since Playwright ignores plain header overrides on a launched browser).
+    Sets the User-Agent on every request that isn't already going through
+    scrapy-playwright (playwright requests get theirs set per-context in the
+    spider itself, via utils.playwright_context_kwargs, since Playwright
+    ignores plain header overrides on a launched browser).
+
+    Despite the class name, utils.random_user_agent() no longer rotates —
+    per-request UA rotation combined with free rotating proxies is what got
+    Naukri to start returning 403s, so both were reverted to a single,
+    stable UA / no proxy. Kept as a class (rather than inlined) so
+    re-enabling real rotation later, with a properly vetted proxy pool, is a
+    one-line change back in utils.py.
     """
 
     def process_request(self, request, spider):
