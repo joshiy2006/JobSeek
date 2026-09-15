@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, GraduationCap, Layers, ChevronDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, GraduationCap, Layers, ChevronDown, Cpu, BarChart2 } from 'lucide-react';
+import StatCard from './StatCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -125,6 +126,28 @@ export default function SkillsIntelligence() {
   const activeSkills = activeListTab === 'rising' ? rising : declining;
 
   return (
+    <div className="flex flex-col gap-5 w-full">
+      <div className="flex items-center gap-3">
+        <div className="page-header-icon">
+          <Cpu className="w-[18px] h-[18px]" />
+        </div>
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-heading dark:text-slate-100">
+            Skills Intelligence
+          </h2>
+          <p className="text-sm text-slate-500 mt-0.5 dark:text-slate-400">
+            Rising and declining skills, and where the NPTEL catalog covers the gap
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatCard icon={TrendingUp} color="emerald" label="Rising Skills" value={rising.length} loading={isLoading} />
+        <StatCard icon={TrendingDown} color="orange" label="Declining Skills" value={declining.length} loading={isLoading} />
+        <StatCard icon={BarChart2} color="indigo" label="Avg Skills / Posting" value={avgSkillsCount ?? '—'} loading={isLoading} />
+        <StatCard icon={Layers} color="sky" label="Postings Analyzed" value={postingCount != null ? postingCount.toLocaleString('en-IN') : '—'} loading={isLoading} />
+      </div>
+
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start w-full">
 
       {error && (
@@ -298,6 +321,7 @@ export default function SkillsIntelligence() {
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 
