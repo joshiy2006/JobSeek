@@ -80,20 +80,36 @@ def _extract_known_skills(text: str, vocabulary: List[str]) -> List[str]:
     return [skill for skill in vocabulary if skill and skill in lowered]
 
 
+# 30-day window at daily granularity — the same "30d" convention
+# TIMEFRAME_CONFIG uses in skills_intelligence.py (max_days_ago=29,
+# bucket_size=1), so this snapshot lines up with what the Hiring Trends
+# tab would show for the same filters.
+_DEMAND_MAX_DAYS_AGO = 29
+_DEMAND_BUCKET_SIZE = 1
+
+# A role_category + city combo can easily have only a handful of
+# postings in a 30-day window. Below this many postings in the OLDER
+# half, a % change is measuring noise (1 -> 3 listings reads as
+# "+200%") rather than a real trend, so momentum is reported as flat
+# instead of a misleading swing. Total active_listings is unaffected —
+# it's always the real count, just the derived percentage that's guarded.
+_MIN_SAMPLE_FOR_MOMENTUM = 4
+
+
 def _get_demand_snapshot(supabase: Client, city: Optional[str], skill_domain: str, anchor: date) -> Dict[str, Any]:
     """Real activeListings + momChange for this user's matched domain
-    (+ city, if given), over the last 30 days — reuses the same
-    Hiring Trends function, not a separate invented metric."""
-    start = anchor - timedelta(days=30)
+    (+ city, if given), over the last 30 days — reuses the Hiring Trends
+    machinery (get_job_data_domain_hiring_trends, a sibling of
+    get_job_data_hiring_trends scoped to one skill_domain), not a
+    separate invented metric. See sql/get_job_data_domain_hiring_trends.sql."""
     try:
         result = supabase.rpc(
-            "get_job_data_hiring_trends",
+            "get_job_data_domain_hiring_trends",
             {
-                "p_start_date": start.isoformat(),
-                "p_end_date": anchor.isoformat(),
-                "p_bucket_unit": "day",
+                "p_max_days_ago": _DEMAND_MAX_DAYS_AGO,
+                "p_bucket_size": _DEMAND_BUCKET_SIZE,
                 "p_city": city,
-                "p_skill_domains": [skill_domain],
+                "p_skill_domain": skill_domain,
             },
         ).execute()
     except Exception as exc:
@@ -101,10 +117,19 @@ def _get_demand_snapshot(supabase: Client, city: Optional[str], skill_domain: st
 
     rows = result.data or []
     total_listings = sum(r["listings"] for r in rows)
+
+    # Rows come back ordered by bucket_index DESC, i.e. oldest-days-ago
+    # bucket first and "today" (bucket 0) last — so the first half of
+    # the list is the older half of the window, the second half is the
+    # more recent half.
     midpoint = len(rows) // 2
-    first_half = sum(r["listings"] for r in rows[:midpoint]) or 0
-    second_half = sum(r["listings"] for r in rows[midpoint:]) or 0
-    mom_change = round((second_half - first_half) / first_half * 100, 1) if first_half else 0.0
+    older_half = sum(r["listings"] for r in rows[:midpoint])
+    recent_half = sum(r["listings"] for r in rows[midpoint:])
+
+    if older_half >= _MIN_SAMPLE_FOR_MOMENTUM:
+        mom_change = round((recent_half - older_half) / older_half * 100, 1)
+    else:
+        mom_change = 0.0
 
     return {"active_listings": total_listings, "mom_change": mom_change}
 
@@ -179,7 +204,7 @@ def skills_gap_analysis(
 
     course_by_skill = {c["skill"]: c for c in course_recs}
 
-    # 6. Real demand snapshot (reuses the Hiring Trends function — not invented)
+    # 6. Real demand snapshot (reuses Hiring Trends' bucketing machinery — not invented)
     demand = _get_demand_snapshot(supabase, profile.city, skill_domain, anchor)
 
     # 7. Groq builds the STRUCTURED roadmap — grounded only in what we retrieved.
